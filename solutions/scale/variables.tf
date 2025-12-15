@@ -6,7 +6,7 @@ variable "ibm_customer_number" {
   type        = string
   sensitive   = true
   default     = null
-  description = "IBM Customer Number (ICN) used for Bring Your Own License (BYOL) entitlement check and not required if storage_type is evaluation, but must be provided if storage_type is scratch or persistent. Failing to provide an ICN will cause the deployment to fail to decrypt the packages. For more information on how to find your ICN, see [What is my IBM Customer Number (ICN)?](https://www.ibm.com/support/pages/what-my-ibm-customer-number-icn)."
+  description = "IBM Customer Number (ICN) used for Bring Your Own License (BYOL) entitlement check and not required if storage_type is evaluation, but must be provided if storage_type is vsi or baremetal. Failing to provide an ICN will cause the deployment to fail to decrypt the packages. For more information on how to find your ICN, see [What is my IBM Customer Number (ICN)?](https://www.ibm.com/support/pages/what-my-ibm-customer-number-icn)."
   # Format validation - Only if value is not null
   validation {
     condition = (
@@ -21,7 +21,7 @@ variable "ibm_customer_number" {
     condition = (
       var.storage_type == "evaluation" || var.ibm_customer_number != null
     )
-    error_message = "The IBM customer number cannot be null when storage_type is 'scratch' or 'persistent'."
+    error_message = "The IBM customer number cannot be null when storage_type is 'vsi' or 'baremetal'."
   }
 }
 
@@ -127,7 +127,7 @@ variable "bastion_instance" {
     profile = string
   })
   default = {
-    image   = "ibm-ubuntu-22-04-5-minimal-amd64-5"
+    image   = "ibm-ubuntu-22-04-5-minimal-amd64-8"
     profile = "cx2-4x8"
   }
   validation {
@@ -152,7 +152,7 @@ variable "deployer_instance" {
     profile = string
   })
   default = {
-    image   = "hpcc-scale-deployer-v1"
+    image   = "hpcc-scale-deployer-v2"
     profile = "bx2-8x32"
   }
   validation {
@@ -259,7 +259,7 @@ variable "compute_instances" {
   default = [{
     profile    = "bx2-2x8"
     count      = 0
-    image      = "hpcc-scale5232-rhel810-v1"
+    image      = "hpcc-scale6000-rhel810-v1"
     filesystem = "/gpfs/fs1"
   }]
   validation {
@@ -316,14 +316,14 @@ variable "storage_instances" {
     })
   )
   default = [{
-    profile    = "bx2d-32x128"
+    profile    = "bx2-32x128"
     count      = 2
-    image      = "hpcc-scale5232-rhel810-v1"
+    image      = "hpcc-scale6000-rhel810-v1"
     filesystem = "/gpfs/fs1"
   }]
   validation {
-    condition = var.storage_type != "persistent" ? alltrue([
-      for inst in var.storage_instances : can(regex("^(b|c|m)x[0-9]+d-[0-9]+x[0-9]+$", inst.profile))
+    condition = var.storage_type != "baremetal" ? alltrue([
+      for inst in var.storage_instances : can(regex("^(b|c|m)x[0-9]-[0-9]+x[0-9]+$", inst.profile))
     ]) : true
     error_message = "Specified profile must be a valid IBM Cloud VPC GEN2 profile name and must be from the Balanced, Compute, Memory Categories (e.g., bx2d-4x16, cx2d-16x64). [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)"
   }
@@ -334,7 +334,7 @@ variable "storage_instances" {
     error_message = "Storage count should always be an even number."
   }
   validation {
-    condition = var.storage_type != "persistent" ? alltrue([
+    condition = var.storage_type != "baremetal" ? alltrue([
       for inst in var.storage_instances : inst.count >= 2 && inst.count <= 64
     ]) : true
     error_message = "storage_instances 'count' value must be in range 2 to 64."
@@ -355,22 +355,29 @@ variable "storage_baremetal_server" {
   default = [{
     profile    = "cx2d-metal-96x192"
     count      = 2
-    image      = "hpcc-scale5232-rhel810-v1"
+    image      = "hpcc-scale6000-rhel810-v1"
     filesystem = "/gpfs/fs1"
   }]
 
   validation {
-    condition = var.storage_type == "persistent" ? alltrue([
+    condition = var.storage_type == "baremetal" ? alltrue([
       for inst in var.storage_baremetal_server : can(regex("^[b|c|m]x[0-9]+d?-[a-z]+-[0-9]+x[0-9]+", inst.profile))
     ]) : true
     error_message = "Specified profile must be a valid IBM Cloud VPC GEN2 profile name [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)."
   }
 
   validation {
-    condition = var.storage_type == "persistent" ? alltrue([
+    condition = var.storage_type == "baremetal" ? alltrue([
       for inst in var.storage_baremetal_server : inst.count >= 2 && inst.count <= 64
     ]) : true
     error_message = "Each storage_baremetal_server 'count' value must be between 2 and 64."
+  }
+
+  validation {
+    condition = alltrue([
+      for inst in var.storage_baremetal_server : inst.count % 2 == 0
+    ])
+    error_message = "Storage_baremetal_server count should always be an even number."
   }
 
   description = "Specify the list of bare metal servers to be provisioned for the storage cluster. Each object in the list specifies the server profile (hardware configuration), the count (number of servers), the image (OS image to use), and an optional filesystem mount path. This configuration allows flexibility in scaling and customizing the storage cluster based on performance and capacity requirements. Only valid bare metal profiles supported in IBM Cloud VPC should be used. A minimum of 2 baremetal storage nodes is required to form a cluster, and a maximum of 64 nodes is supported For available bare metal profiles, refer to the [Baremetal Profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-bare-metal-servers-profile&interface=ui)."
@@ -415,7 +422,7 @@ variable "afm_instances" {
     ])
     error_message = "afm_instances 'count' value must be between 0 and 16."
   }
-  description = "Specify the list of virtual server instances to be provisioned as AFM nodes in the cluster. Each object in the list includes the instance profile (machine type), the count (number of instances), the image (OS image to use). This configuration allows you to access remote data  and high-performance computing needs.This input can be used to provision virtual server instances (VSI). If persistent, high-throughput storage is required, consider using bare metal instances instead. Ensure you provide valid instance profiles. Maximum of 16 afm nodes is supported. For more details, refer to [Instance Profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui)."
+  description = "Specify the list of virtual server instances to be provisioned as AFM nodes in the cluster. Each object in the list includes the instance profile (machine type), the count (number of instances), the image (OS image to use). This configuration allows you to access remote data  and high-performance computing needs.This input can be used to provision virtual server instances (VSI). If baremetal, high-throughput storage is required, consider using bare metal instances instead. Ensure you provide valid instance profiles. Maximum of 16 afm nodes is supported. For more details, refer to [Instance Profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui)."
 }
 
 
@@ -442,7 +449,7 @@ variable "protocol_instances" {
     ])
     error_message = "protocol_instances 'count' value must be between 0 and 32."
   }
-  description = "Specify the list of virtual server instances to be provisioned as protocol nodes in the cluster. Each object in the list includes the instance profile (machine type), the count (number of instances), the image (OS image to use). This configuration allows allows for a unified data management solution, enabling different clients to access the same data using NFS protocol.This input can be used to provision virtual server instances (VSI). If persistent, high-throughput storage is required, consider using bare metal instances instead. Ensure you provide valid instance profiles. Maximum of 32 VSI or baremetal nodes are supported. For more details, refer to [Instance Profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui)."
+  description = "Specify the list of virtual server instances to be provisioned as protocol nodes in the cluster. Each object in the list includes the instance profile (machine type), the count (number of instances), the image (OS image to use). This configuration allows allows for a unified data management solution, enabling different clients to access the same data using NFS protocol.This input can be used to provision virtual server instances (VSI). If baremetal, high-throughput storage is required, consider using bare metal instances instead. Ensure you provide valid instance profiles. Maximum of 32 VSI or baremetal nodes are supported. For more details, refer to [Instance Profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui)."
 }
 
 variable "colocate_protocol_instances" {
@@ -450,7 +457,7 @@ variable "colocate_protocol_instances" {
   default     = true
   description = "Enable this option to colocate protocol services on the same virtual server instances used for storage. When set to true, the storage nodes will also act as protocol nodes for reducing the need for separate infrastructure. This can optimize resource usage and simplify the cluster setup, especially for smaller environments or cost-sensitive deployments. For larger or performance-intensive workloads, consider deploying dedicated protocol instances instead."
   validation {
-    condition     = anytrue([var.colocate_protocol_instances == true && var.storage_type != "persistent" && sum(var.protocol_instances[*]["count"]) <= sum(var.storage_instances[*]["count"]), var.colocate_protocol_instances == true && var.storage_type == "persistent" && sum(var.protocol_instances[*]["count"]) <= sum(var.storage_baremetal_server[*]["count"]), var.colocate_protocol_instances == false])
+    condition     = anytrue([var.colocate_protocol_instances == true && var.storage_type != "baremetal" && sum(var.protocol_instances[*]["count"]) <= sum(var.storage_instances[*]["count"]), var.colocate_protocol_instances == true && var.storage_type == "baremetal" && sum(var.protocol_instances[*]["count"]) <= sum(var.storage_baremetal_server[*]["count"]), var.colocate_protocol_instances == false])
     error_message = "When colocation is true, protocol instance count should always be less than or equal to storage instance count"
   }
 }
@@ -501,6 +508,25 @@ variable "filesystem_config" {
     max_metadata_replica     = 3
   }]
   description = "Specify the configuration parameters for one or more IBM Storage Scale (GPFS) filesystems. Each object in the list includes the filesystem mount point, block size, and replica settings for both data and metadata. These settings determine how data is distributed and replicated across the cluster for performance and fault tolerance."
+  validation {
+    condition = alltrue([
+      for fs in var.filesystem_config :
+
+      fs.default_data_replica >= 1 &&
+      fs.default_data_replica <= 3 &&
+      fs.max_data_replica >= 1 &&
+      fs.max_data_replica <= 3 &&
+
+      fs.default_metadata_replica >= 1 &&
+      fs.default_metadata_replica <= 3 &&
+      fs.max_metadata_replica >= 1 &&
+      fs.max_metadata_replica <= 3 &&
+
+      fs.max_data_replica > fs.default_data_replica &&
+      fs.max_metadata_replica > fs.default_metadata_replica
+    ])
+    error_message = "In filesystem_config, replica values must be between 1 and 3. Additionally, max_data_replica must be greater than default_data_replica, and max_metadata_replica must be greater than default_metadata_replica."
+  }
 }
 
 variable "filesets_config" {
@@ -520,6 +546,7 @@ variable "filesets_config" {
   ]
   description = "Specify a list of filesets with client mount paths and optional storage quotas (0 means no quota) to be created within the IBM Storage Scale filesystem.."
 }
+
 
 variable "afm_cos_config" {
   type = list(object({
@@ -613,6 +640,7 @@ variable "dns_domain_names" {
     protocol = string
     client   = string
     gklm     = string
+    ppnlb    = string
   })
   default = {
     compute  = "comp.com"
@@ -620,6 +648,7 @@ variable "dns_domain_names" {
     protocol = "ces.com"
     client   = "clnt.com"
     gklm     = "gklm.com"
+    ppnlb    = "strgscale.private"
   }
   description = "DNS domain names are user-friendly addresses that map to systems within a network, making them easier to identify and access. Provide the DNS domain names for IBM Cloud HPC components: compute, storage, protocol, client, and GKLM. These domains will be assigned to the respective nodes that are part of the scale cluster."
 }
@@ -754,7 +783,7 @@ variable "ldap_instance" {
   )
   default = [{
     profile = "cx2-2x4"
-    image   = "ibm-ubuntu-22-04-5-minimal-amd64-5"
+    image   = "ibm-ubuntu-22-04-5-minimal-amd64-8"
   }]
   description = "Specify the list of virtual server instances to be provisioned as ldap nodes in the cluster. Each object in the list defines the instance profile (machine type), the count (number of instances), the image (OS image to use). This configuration allows you to customize the server for setting up ldap server. The profile must match a valid IBM Cloud VPC Gen2 instance profile format. For more details, refer [Instance Profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui)."
   validation {
@@ -864,15 +893,15 @@ variable "key_protect_instance_id" {
 
 variable "storage_type" {
   type        = string
-  default     = "scratch"
-  description = "Select the Storage Scale file system deployment method. Note: The Storage Scale scratch and evaluation type deploys the Storage Scale file system on virtual server instances, and the persistent type deploys the Storage Scale file system on bare metal servers."
+  default     = "vsi"
+  description = "Select the Storage Scale file system deployment method. Note: The Storage Scale vsi and evaluation type deploys the Storage Scale file system on virtual server instances, and the baremetal type deploys the Storage Scale file system on bare metal servers."
   validation {
-    condition     = can(regex("^(scratch|persistent|evaluation)$", lower(var.storage_type)))
-    error_message = "The solution only support scratch, evaluation, and persistent; provide any one of the value."
+    condition     = can(regex("^(vsi|baremetal|evaluation)$", lower(var.storage_type)))
+    error_message = "The solution only support vsi, evaluation, and baremetal; provide any one of the value."
   }
   validation {
-    condition     = var.storage_type == "persistent" ? contains(["us-south-1", "us-south-2", "us-south-3", "us-east-1", "us-east-2", "eu-de-1", "eu-de-2", "eu-de-3", "eu-gb-1", "eu-es-3", "eu-es-1", "jp-tok-2", "jp-tok-3", "ca-tor-2", "ca-tor-3"], join(",", var.zones)) : true
-    error_message = "The solution supports bare metal server creation in only given availability zones i.e. us-south-1, us-south-3, us-south-2, eu-de-1, eu-de-2, eu-de-3, jp-tok-2, eu-gb-1, us-east-1, us-east-2, eu-es-3, eu-es-1, jp-tok-3, jp-tok-2, ca-tor-2 and ca-tor-3. To deploy persistent storage provide any one of the supported availability zones."
+    condition     = var.storage_type == "baremetal" ? contains(["us-south-1", "us-south-2", "us-south-3", "us-east-1", "us-east-2", "eu-de-1", "eu-de-2", "eu-de-3", "eu-gb-1", "eu-es-3", "eu-es-1", "jp-tok-2", "jp-tok-3", "ca-tor-2", "ca-tor-3"], join(",", var.zones)) : true
+    error_message = "The solution supports bare metal server creation in only given availability zones i.e. us-south-1, us-south-3, us-south-2, eu-de-1, eu-de-2, eu-de-3, jp-tok-2, eu-gb-1, us-east-1, us-east-2, eu-es-3, eu-es-1, jp-tok-3, jp-tok-2, ca-tor-2 and ca-tor-3. To deploy baremetal storage provide any one of the supported availability zones."
   }
 }
 
@@ -1122,5 +1151,105 @@ variable "TF_PARALLELISM" {
   validation {
     condition     = 1 <= var.TF_PARALLELISM && var.TF_PARALLELISM <= 256
     error_message = "Input \"TF_PARALLELISM\" must be greater than or equal to 1 and less than or equal to 256."
+  }
+}
+
+variable "volume_storages" {
+  description = "Configures the boot and block volumes for each instance. Boot volumes use the SDP profile by default but can be changed to a general-purpose profile if required by the workload. If the boot volume profile is set to general-purpose, the IOPS value should be set to 0 or null, as IOPS are not supported for that profile. Block volumes are always created with the SDP profile to maintain performance standards. You can specify optional boot volume settings (profile, size, IOPS), while block volume capacity and IOPS are mandatory. Both volume types support an optional auto-grow feature that allows disk size to increase automatically when needed through automation."
+  type = list(
+    object({
+      # Boot Volume
+      boot_volume_profile   = optional(string)
+      boot_volume_size      = optional(number)
+      boot_volume_iops      = optional(number)
+      boot_volume_disk_grow = optional(bool, false)
+
+      # Block Volume
+      block_volume_capacity  = number
+      block_volume_iops      = number
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+
+  default = [{
+    # Boot Volume
+    boot_volume_profile   = "sdp"
+    boot_volume_size      = 100
+    boot_volume_iops      = 3000 # IOPS is not applicable for general-purpose profile
+    boot_volume_disk_grow = false
+    # Block Volume
+    block_volume_capacity  = 500
+    block_volume_iops      = 20000
+    block_volume_disk_grow = false
+  }]
+
+  validation {
+    condition = alltrue([
+      for v in var.volume_storages : (
+        (
+          v.boot_volume_profile == null ? true : (
+            contains(["sdp", "general-purpose"], v.boot_volume_profile) &&
+            (v.boot_volume_size != null && v.boot_volume_size <= 250) &&
+            (
+              v.boot_volume_profile == "sdp" ?
+              # For SDP: IOPS and disk_grow required
+              (v.boot_volume_iops != null && v.boot_volume_iops >= 3000 && v.boot_volume_disk_grow != null)
+              :
+              # For general-purpose: IOPS must be null or 0
+              (v.boot_volume_iops == null || v.boot_volume_iops == 0)
+            )
+          )
+        )
+        &&
+        (
+          v.block_volume_capacity == null || v.block_volume_capacity == "" ? true : (
+            v.block_volume_iops != null &&
+            (v.block_volume_iops >= 3000) &&
+            v.block_volume_iops <= (
+              v.block_volume_capacity <= 20 ? 3000 :
+              v.block_volume_capacity <= 50 ? 5000 :
+              v.block_volume_capacity <= 80 ? 20000 :
+              v.block_volume_capacity <= 100 ? 30000 :
+              v.block_volume_capacity <= 130 ? 45000 :
+              v.block_volume_capacity <= 150 ? 60000 :
+              64000
+            )
+          )
+        )
+      )
+    ])
+
+    error_message = <<EOT
+Invalid volume_storages configuration:
+- You can provide only block, or both sections.
+- If boot_volume_profile = "sdp":
+    * boot_volume_size, boot_volume_iops (>=3000), and boot_volume_disk_grow are required
+- If boot_volume_profile = "general-purpose":
+    * boot_volume_iops must be null or 0
+- If block_volume_capacity is not null or empty:
+    * block_volume_iops must be >= 3000 and within correct range for capacity
+EOT
+  }
+}
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  default     = false
+  description = "When set to true, provisions a private path Network Load Balancer that enables CES (NFS) storage access for the cluster. The private path integrates with the Scale NFS nodes to provide a secure, high-performance method of delivering file storage to clients within the same VPC, ensuring direct and efficient access to the CES storage nodes."
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "Specifies the MTU value for the protocol instance on eth1. When Private Path NLB (PPNLB) is enabled, the MTU must be set within the supported range of 1500 to 8500; values above 8500 will cause cluster mount operations to fail. When PPNLB is disabled, the MTU can use the default value of 9000"
+  default     = 9000
+
+  validation {
+    condition = (
+      var.protocol_instance_eth1_mtu >= 1500 &&
+      var.protocol_instance_eth1_mtu <= (
+        var.enable_private_path_nlb ? 8500 : 9000
+      )
+    )
+    error_message = "MTU must be between 1500-8500 when private path NLB is enabled, or 1500-9000 when disabled."
   }
 }

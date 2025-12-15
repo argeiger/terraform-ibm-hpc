@@ -120,8 +120,8 @@ variable "scheduler" {
 
 variable "storage_type" {
   type        = string
-  default     = "scratch"
-  description = "Select the required storage type(scratch/persistent/eval)."
+  default     = "vsi"
+  description = "Select the required storage type(vsi/baremetal/eval)."
 }
 
 variable "domain_names" {
@@ -152,6 +152,11 @@ variable "protocol_interface" {
   type        = string
 }
 
+variable "enable_sec_interface_compute" {
+  description = "Secondary Network interface to use for compute for enabling Parallel VNic feature"
+  type        = bool
+}
+
 variable "enable_protocol" {
   description = "Enable protocol services (true/false)"
   type        = bool
@@ -178,4 +183,16 @@ variable "scale_encryption_type" {
   type        = string
   default     = null
   description = "To enable filesystem encryption, specify either 'key_protect' or 'gklm'. If neither is specified, the default value will be 'null' and encryption is disabled"
+}
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  default     = false
+  description = "Enable private path network load balancer for providing CES (NFS) storage."
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "MTU for protocol instance eth1. When private path NLB is enabled, MTU must be 8500 or lower. When disabled, MTU can be up to 9000."
+  default     = 9000
 }

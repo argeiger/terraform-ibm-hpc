@@ -1,7 +1,7 @@
 ---
-- name: MTU Check | Restart NetworkManager if MTU 9000 is not configured
+- name: MTU Check | Restart NetworkManager if MTU {{ mtu_value }} is not configured
   ansible.builtin.shell: |
-    ip route show | grep -q 'mtu 9000' || {
+    ip route show | grep -q 'mtu {{ mtu_value }}' || {
       systemctl restart NetworkManager
       echo "restarted"
     }

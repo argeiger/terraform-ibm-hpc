@@ -232,6 +232,7 @@ variable "dns_domain_names" {
     protocol = string
     client   = string
     gklm     = string
+    ppnlb    = string
   })
   description = "IBM Cloud HPC DNS domain names."
 }
@@ -553,8 +554,8 @@ variable "key_protect_instance_id" {
 
 variable "storage_type" {
   type        = string
-  default     = "scratch"
-  description = "Select the required storage type(scratch/persistent/eval)."
+  default     = "vsi"
+  description = "Select the required storage type(vsi/baremetal/eval)."
 }
 
 variable "colocate_protocol_instances" {
@@ -714,6 +715,10 @@ variable "custom_file_shares" {
   description = "Provide details for customizing your shared file storage layout, including mount points, sizes (in GB), and IOPS ranges for up to five file shares if using VPC file storage as the storage option.If using IBM Storage Scale as an NFS mount, update the appropriate mount path and nfs_share values created from the Storage Scale cluster. Note that VPC file storage supports attachment to a maximum of 256 nodes. Exceeding this limit may result in mount point failures due to attachment restrictions.For more information, see [Storage options](https://test.cloud.ibm.com/docs/hpc-ibm-spectrumlsf?topic=hpc-ibm-spectrumlsf-integrating-scale#integrate-scale-and-hpc)."
 }
 
+variable "mtu_value" {
+  type        = number
+  description = "Default MTU is 9000. For deployments using Spectrum Scale with LSF and PPNLB enabled, configure the MTU at 8500 or lower to ensure compatibility."
+}
 
 variable "bms_boot_drive_encryption" {
   type        = bool
@@ -860,4 +865,30 @@ variable "ldap_security_group_name" {
   type        = string
   default     = null
   description = "Provide the security group name to provision the ldap nodes. If set to null, the solution will automatically create the necessary security group and rules. If you choose to use an existing security group, ensure it has the appropriate rules configured for the ldap nodes to function properly."
+}
+
+variable "volume_storages" {
+  description = "The Volume Storage Profile to use for volume of the virtual instance"
+  type = list(
+    object({
+      boot_volume_profile    = optional(string)
+      boot_volume_iops       = optional(string)
+      boot_volume_size       = optional(number)
+      boot_volume_disk_grow  = optional(bool, false)
+      block_volume_capacity  = optional(number)
+      block_volume_iops      = optional(number)
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+  default = []
+}
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  description = "Enable private path network load balancer for providing CES (NFS) storage."
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "Enable the Private Path NLB for CES. When enabled, MTU must be 8500 or lower because PPNLB does not support MTU 9000. When disabled, protocol nodes can safely use MTU 9000."
 }

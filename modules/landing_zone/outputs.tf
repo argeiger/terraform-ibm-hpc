@@ -8,6 +8,11 @@ output "vpc_name" {
   value       = module.landing_zone[*].vpc_data[0].vpc_name
 }
 
+output "vpc_default_security_group" {
+  description = "VPC default security group name"
+  value       = module.landing_zone[*].vpc_data[0].vpc_data.default_security_group
+}
+
 output "vpc_id" {
   description = "VPC ID"
   value       = module.landing_zone[*].vpc_data[0].vpc_id
@@ -41,7 +46,7 @@ output "client_subnets" {
     id   = subnet["id"]
     zone = subnet["zone"]
     cidr = subnet["cidr"]
-    } if strcontains(subnet["name"], "-${local.name}-client-subnet")
+    } if strcontains(subnet["name"], "-${local.name}-client-subnet") || strcontains(subnet["name"], "-${local.name}-ppnlb-subnet")
   ]
 }
 

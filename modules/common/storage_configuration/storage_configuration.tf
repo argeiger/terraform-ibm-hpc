@@ -42,13 +42,13 @@ resource "local_sensitive_file" "write_existing_ldap_cert" {
 }
 
 resource "time_sleep" "wait_300_seconds" {
-  count           = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true) && var.storage_type == "persistent" ? 1 : 0
+  count           = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true) && var.storage_type == "baremetal" ? 1 : 0
   create_duration = "300s"
   depends_on      = [local_sensitive_file.write_meta_private_key]
 }
 
 resource "null_resource" "scale_baremetal_ssh_check_play" {
-  count = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true && tobool(var.create_scale_cluster) == true) && var.storage_type == "persistent" ? 1 : 0
+  count = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true && tobool(var.create_scale_cluster) == true) && var.storage_type == "baremetal" ? 1 : 0
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command     = "sudo ansible-playbook -f 50 -i ${local.scale_all_inventory} -l 'storage' -e @${local.scale_baremetal_prerequisite_vars} ${local.scale_baremetal_ssh_check_playbook_path}"
@@ -72,7 +72,7 @@ resource "null_resource" "scale_host_play" {
 }
 
 resource "null_resource" "scale_baremetal_bootdrive_play" {
-  count = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true && tobool(var.create_scale_cluster) == true) && var.storage_type == "persistent" && var.bms_boot_drive_encryption == true ? 1 : 0
+  count = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true && tobool(var.create_scale_cluster) == true) && var.storage_type == "baremetal" && var.bms_boot_drive_encryption == true ? 1 : 0
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command     = "sudo ansible-playbook -f 50 -i ${local.scale_all_inventory} -l 'storage' -e @${local.scale_baremetal_prerequisite_vars} ${local.scale_baremetal_bootdrive_playbook_path}"
@@ -84,7 +84,7 @@ resource "null_resource" "scale_baremetal_bootdrive_play" {
 }
 
 resource "null_resource" "scale_baremetal_prerequisite_play" {
-  count = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true && tobool(var.create_scale_cluster) == true) && var.storage_type == "persistent" ? 1 : 0
+  count = (tobool(var.turn_on) == true && tobool(var.write_inventory_complete) == true && tobool(var.create_scale_cluster) == true) && var.storage_type == "baremetal" ? 1 : 0
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command     = "sudo ansible-playbook -f 50 -i ${local.scale_all_inventory} -l 'storage' -e @${local.scale_baremetal_prerequisite_vars} ${local.scale_baremetal_prerequisite_playbook_path}"
@@ -168,6 +168,21 @@ resource "null_resource" "perform_scale_deployment" {
     command     = "sudo ansible-playbook -f 32 -i ${local.storage_inventory_path} ${local.storage_playbook_path} --extra-vars \"scale_version=${var.scale_version}\" --extra-vars \"scale_install_directory_pkg_path=${var.spectrumscale_rpms_path}\""
   }
   depends_on = [null_resource.scale_host_play, null_resource.scale_baremetal_prerequisite_play, null_resource.scale_baremetal_bootdrive_play, time_sleep.wait_60_seconds, null_resource.wait_for_ssh_availability, null_resource.prepare_ansible_inventory, null_resource.prepare_ansible_inventory_using_jumphost_connection, null_resource.prepare_ansible_inventory, null_resource.prepare_ansible_inventory_using_jumphost_connection]
+  triggers = {
+    build = timestamp()
+  }
+}
+
+resource "null_resource" "perform_disk_grow_and_nsd_add" {
+  count = (var.block_volume_disk_grow || var.boot_volume_disk_grow) ? 1 : 0
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command = join(" && ", compact([
+      var.boot_volume_disk_grow ? "sudo ansible-playbook -f 32 -i ${local.storage_inventory_path} ${local.storage_boot_disk_grow_playbook_path}" : "",
+      var.block_volume_disk_grow ? "sudo ansible-playbook -f 32 -i ${local.storage_inventory_path} ${local.storage_block_disk_grow_and_nsd_add_playbook_path}" : ""
+    ]))
+  }
+  depends_on = [null_resource.perform_scale_deployment]
   triggers = {
     build = timestamp()
   }

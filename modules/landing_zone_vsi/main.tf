@@ -136,7 +136,7 @@ module "storage_sg" {
 module "login_vsi" {
   count                         = var.scheduler == "LSF" ? 1 : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = 1
   create_security_group         = false
   security_group                = null
@@ -154,20 +154,22 @@ module "login_vsi" {
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   placement_group_id            = var.placement_group_ids
   #placement_group_id = var.placement_group_ids[(var.management_instances[count.index]["count"])%(length(var.placement_group_ids))]
 }
 
 module "management_vsi" {
-  count                 = length(var.management_instances)
-  source                = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version               = "5.11.0"
-  vsi_per_subnet        = var.management_instances[count.index]["count"]
-  create_security_group = false
-  security_group        = null
-  catalog_offering      = var.lsf_pay_per_use ? local.catalog_offering : null
-  image_id              = var.lsf_pay_per_use ? null : (local.image_mapping_entry_found ? local.new_image_id : data.ibm_is_image.management_stock_image[0].id)
-  #image_id                      = local.image_mapping_entry_found ? local.new_image_id : data.ibm_is_image.management_stock_image[0].id
+  count                         = length(var.management_instances)
+  source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
+  version                       = "5.13.0"
+  vsi_per_subnet                = var.management_instances[count.index]["count"]
+  create_security_group         = false
+  security_group                = null
+  catalog_offering              = var.scheduler != "Scale" && var.lsf_pay_per_use ? local.catalog_offering : null
+  image_id                      = var.scheduler != "Scale" && var.lsf_pay_per_use ? null : (local.image_mapping_entry_found ? local.new_image_id : data.ibm_is_image.management_stock_image[0].id)
   machine_type                  = var.management_instances[count.index]["profile"]
   prefix                        = format("%s-%s", local.management_node_name, count.index + 1)
   resource_group_id             = var.resource_group
@@ -181,19 +183,21 @@ module "management_vsi" {
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   placement_group_id            = var.placement_group_ids
 }
 
 module "compute_vsi" {
-  count                 = length(var.static_compute_instances)
-  source                = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version               = "5.11.0"
-  vsi_per_subnet        = var.static_compute_instances[count.index]["count"]
-  create_security_group = false
-  security_group        = null
-  catalog_offering      = var.lsf_pay_per_use ? local.catalog_offering : null
-  image_id              = var.lsf_pay_per_use ? null : (var.scheduler == "LSF" ? (local.compute_image_found_in_map ? local.new_compute_image_id : data.ibm_is_image.compute_stock_image[0].id) : (var.storage_type != "evaluation" ? (local.scale_compute_image_found_in_map ? local.scale_compute_image_id : data.ibm_is_image.scale_compute_stock_image[0].id) : local.evaluation_image_id))
-  #image_id                      = var.scheduler == "LSF" ? (local.compute_image_found_in_map ? local.new_compute_image_id : data.ibm_is_image.compute_stock_image[0].id) : (var.storage_type != "evaluation" ? (local.scale_compute_image_found_in_map ? local.scale_compute_image_id : data.ibm_is_image.scale_compute_stock_image[0].id) : local.evaluation_image_id)
+  count                         = length(var.static_compute_instances)
+  source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
+  version                       = "5.13.0"
+  vsi_per_subnet                = var.static_compute_instances[count.index]["count"]
+  create_security_group         = false
+  security_group                = null
+  catalog_offering              = var.scheduler != "Scale" && var.lsf_pay_per_use ? local.catalog_offering : null
+  image_id                      = var.scheduler != "Scale" && var.lsf_pay_per_use ? null : (var.scheduler == "LSF" ? (local.compute_image_found_in_map ? local.new_compute_image_id : data.ibm_is_image.compute_stock_image[0].id) : (var.storage_type != "evaluation" ? (local.scale_compute_image_found_in_map ? local.scale_compute_image_id : data.ibm_is_image.scale_compute_stock_image[0].id) : local.evaluation_image_id))
   machine_type                  = var.static_compute_instances[count.index]["profile"]
   prefix                        = format("%s-%s", local.compute_node_name, count.index + 1)
   resource_group_id             = var.resource_group
@@ -207,6 +211,9 @@ module "compute_vsi" {
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   placement_group_id            = var.enable_dedicated_host ? null : var.placement_group_ids
   enable_dedicated_host         = var.enable_dedicated_host
   dedicated_host_id             = var.enable_dedicated_host && length(var.static_compute_instances) > 0 ? local.dedicated_host_map[var.static_compute_instances[count.index]["profile"]] : null
@@ -219,7 +226,7 @@ module "compute_vsi" {
 module "compute_cluster_management_vsi" {
   count                         = var.scheduler == "Scale" && local.enable_compute ? 1 : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = 1
   create_security_group         = false
   security_group                = null
@@ -236,6 +243,9 @@ module "compute_cluster_management_vsi" {
   vpc_id                        = var.vpc_id
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   boot_volume_encryption_key    = var.boot_volume_encryption_key
   placement_group_id            = var.placement_group_ids
   secondary_security_groups     = local.enable_sec_interface_compute ? local.storage_secondary_security_group : []
@@ -244,9 +254,9 @@ module "compute_cluster_management_vsi" {
 }
 
 module "storage_vsi" {
-  count                         = var.scheduler == "Scale" ? (length(var.storage_instances) > 0 && var.storage_type != "persistent" ? 1 : 0) : 0
+  count                         = var.scheduler == "Scale" ? (length(var.storage_instances) > 0 && var.storage_type != "baremetal" ? 1 : 0) : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = var.storage_instances[count.index]["count"]
   create_security_group         = false
   security_group                = null
@@ -264,6 +274,9 @@ module "storage_vsi" {
   block_storage_volumes         = local.enable_block_storage ? local.block_storage_volumes : []
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   boot_volume_encryption_key    = var.boot_volume_encryption_key
   placement_group_id            = var.placement_group_ids
   secondary_allow_ip_spoofing   = local.enable_protocol && var.colocate_protocol_instances ? true : false
@@ -277,7 +290,7 @@ module "storage_vsi" {
 module "storage_cluster_management_vsi" {
   count                         = var.scheduler == "Scale" ? length(var.storage_instances) : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = 1
   create_security_group         = false
   security_group                = null
@@ -292,9 +305,11 @@ module "storage_cluster_management_vsi" {
   tags                          = local.tags
   user_data                     = data.template_file.storage_user_data.rendered
   vpc_id                        = var.vpc_id
-  block_storage_volumes         = local.enable_block_storage ? local.block_storage_volumes : []
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   boot_volume_encryption_key    = var.boot_volume_encryption_key
   placement_group_id            = var.placement_group_ids
   secondary_security_groups     = local.enable_sec_interface_storage ? local.storage_secondary_security_group : []
@@ -303,9 +318,9 @@ module "storage_cluster_management_vsi" {
 }
 
 module "storage_cluster_tie_breaker_vsi" {
-  count                         = var.scheduler == "Scale" ? (var.storage_type != "persistent" ? 1 : 0) : 0
+  count                         = var.scheduler == "Scale" ? (var.storage_type != "baremetal" ? 1 : 0) : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = 1
   create_security_group         = false
   security_group                = null
@@ -323,6 +338,9 @@ module "storage_cluster_tie_breaker_vsi" {
   block_storage_volumes         = local.enable_block_storage ? local.block_storage_volumes : []
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   boot_volume_encryption_key    = var.boot_volume_encryption_key
   placement_group_id            = var.placement_group_ids
   secondary_security_groups     = local.enable_sec_interface_storage ? local.storage_secondary_security_group : []
@@ -334,7 +352,7 @@ module "storage_cluster_tie_breaker_vsi" {
 module "client_vsi" {
   count                         = var.scheduler == "Scale" ? length(var.client_instances) : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = var.client_instances[count.index]["count"]
   create_security_group         = false
   security_group                = null
@@ -352,12 +370,15 @@ module "client_vsi" {
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
 }
 
 module "protocol_vsi" {
   count                         = var.scheduler == "Scale" ? ((local.enable_protocol && var.colocate_protocol_instances == false && local.ces_server_type == false) ? 1 : 0) : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = var.protocol_instances[count.index]["count"]
   create_security_group         = false
   security_group                = null
@@ -375,6 +396,9 @@ module "protocol_vsi" {
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   # Bug: 5847 - LB profile & subnets are not configurable
   # load_balancers        = local.enable_load_balancer ? local.load_balancers : []
   secondary_allow_ip_spoofing = true
@@ -387,7 +411,7 @@ module "protocol_vsi" {
 module "afm_vsi" {
   count                         = var.scheduler == "Scale" ? ((local.afm_server_type == false && local.enable_afm) ? 1 : 0) : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = var.afm_instances[count.index]["count"]
   create_security_group         = false
   security_group                = null
@@ -405,13 +429,16 @@ module "afm_vsi" {
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   depends_on                    = [resource.null_resource.entitlement_check]
 }
 
 module "gklm_vsi" {
   count                         = var.scheduler == "Scale" ? (var.scale_encryption_enabled == true && var.scale_encryption_type == "gklm" ? 1 : 0) : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = var.gklm_instances[count.index]["count"]
   create_security_group         = false
   security_group                = null
@@ -429,12 +456,15 @@ module "gklm_vsi" {
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
 }
 
 module "ldap_vsi" {
   count                         = var.enable_ldap == true && var.ldap_server == "null" ? 1 : 0
   source                        = "terraform-ibm-modules/landing-zone-vsi/ibm"
-  version                       = "5.11.0"
+  version                       = "5.13.0"
   vsi_per_subnet                = 1
   create_security_group         = false
   security_group                = null
@@ -449,10 +479,12 @@ module "ldap_vsi" {
   tags                          = local.tags
   user_data                     = data.template_file.ldap_user_data.rendered
   vpc_id                        = var.vpc_id
-  block_storage_volumes         = local.enable_block_storage ? local.block_storage_volumes : []
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = local.skip_iam_authorization_policy
   boot_volume_encryption_key    = var.boot_volume_encryption_key
+  boot_volume_size              = local.boot_volume_size
+  boot_volume_profile           = local.boot_volume_profile
+  boot_volume_iops              = local.boot_volume_iops
   placement_group_id            = var.placement_group_ids
   #placement_group_id = var.placement_group_ids[(var.storage_instances[count.index]["count"])%(length(var.placement_group_ids))]
 }
@@ -478,7 +510,7 @@ module "dedicated_host" {
 ########################################################################
 
 module "storage_baremetal" {
-  count                        = length(var.storage_servers) > 0 && var.storage_type == "persistent" ? 1 : 0
+  count                        = length(var.storage_servers) > 0 && var.storage_type == "baremetal" ? 1 : 0
   source                       = "../baremetal"
   existing_resource_group      = var.resource_group
   image_id                     = local.storage_bare_metal_image_mapping_entry_found ? local.storage_bare_metal_image_id : data.ibm_is_image.baremetal_storage[0].id
@@ -496,7 +528,7 @@ module "storage_baremetal" {
 }
 
 module "storage_baremetal_tie_breaker" {
-  count                         = length(var.storage_servers) > 0 && var.storage_type == "persistent" ? 1 : 0
+  count                         = length(var.storage_servers) > 0 && var.storage_type == "baremetal" ? 1 : 0
   source                        = "../baremetal"
   existing_resource_group       = var.resource_group
   image_id                      = local.storage_bare_metal_image_mapping_entry_found ? local.storage_bare_metal_image_id : data.ibm_is_image.baremetal_storage[0].id

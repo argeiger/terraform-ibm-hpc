@@ -44,6 +44,11 @@ data "ibm_is_subnet" "existing_storage_subnets" {
   identifier = var.storage_subnet_id
 }
 
+data "ibm_is_subnet" "existing_compute_subnets_cidr" {
+  count      = var.enable_deployer == false && var.compute_subnet_id != null ? 1 : 0
+  identifier = var.compute_subnet_id
+}
+
 data "ibm_is_subnet" "existing_protocol_subnets" {
   count      = var.vpc_name != null && var.protocol_subnet_id != null ? 1 : 0
   identifier = var.protocol_subnet_id
@@ -78,7 +83,7 @@ data "ibm_is_instance_profile" "storage_profile" {
 }
 
 data "ibm_is_bare_metal_server_profile" "storage_bms_profile" {
-  count = var.scheduler == "Scale" && var.storage_type == "persistent" ? 1 : 0
+  count = var.scheduler == "Scale" && var.storage_type == "baremetal" ? 1 : 0
   name  = local.storage_bms_profile[0]
 }
 
@@ -114,4 +119,8 @@ data "ibm_is_bare_metal_server_profile" "afm_bm_profile" {
 data "ibm_is_security_group" "login_security_group" {
   count = var.login_security_group_name != null ? 1 : 0
   name  = var.login_security_group_name
+}
+
+data "ibm_iam_account_settings" "account" {
+  count = var.enable_private_path_nlb ? 1 : 0
 }

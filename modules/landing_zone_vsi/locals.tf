@@ -43,37 +43,10 @@ locals {
   scale_compute_image_id           = local.scale_compute_image_found_in_map ? local.storage_image_region_map[var.static_compute_instances[0]["image"]][local.region] : "Image not found with the given name"
 
   products = var.scheduler == "Scale" ? "scale" : "lsf"
-  block_storage_volumes = [for volume in coalesce(var.nsd_details, []) : {
-    name           = format("nsd-%s", index(var.nsd_details, volume) + 1)
-    profile        = volume["profile"]
-    capacity       = volume["capacity"]
-    iops           = volume["iops"]
-    resource_group = var.resource_group
-    # TODO: Encryption
-    # encryption_key =
-  }]
-  # TODO: Update the LB configurable
-  # Bug: 5847 - LB profile & subnets are not configurable
-  /*
-  load_balancers = [{
-    name              = "hpc"
-    type              = "private"
-    listener_port     = 80
-    listener_protocol = "http"
-    connection_limit  = 10
-    algorithm         = "round_robin"
-    protocol          = "http"
-    health_delay      = 60
-    health_retries    = 5
-    health_timeout    = 30
-    health_type       = "http"
-    pool_member_port  = 80
-  }]
-  */
 
   client_instance_count         = sum(var.client_instances[*]["count"])
   management_instance_count     = sum(var.management_instances[*]["count"])
-  storage_instance_count        = var.storage_type == "persistent" ? sum(var.storage_servers[*]["count"]) : sum(var.storage_instances[*]["count"])
+  storage_instance_count        = var.storage_type == "baremetal" ? sum(var.storage_servers[*]["count"]) : sum(var.storage_instances[*]["count"])
   protocol_instance_count       = sum(var.protocol_instances[*]["count"])
   static_compute_instance_count = sum(var.static_compute_instances[*]["count"])
   afm_instances_count           = sum(var.afm_instances[*]["count"])
@@ -85,7 +58,7 @@ locals {
   enable_protocol   = local.storage_instance_count > 0 && local.protocol_instance_count > 0
   enable_afm        = local.afm_instances_count > 0
   # TODO: Fix the logic
-  enable_block_storage = var.storage_type == "scratch" ? true : false
+  enable_block_storage = var.storage_type == "vsi" || var.storage_type == "evaluation" ? true : false
 
   # Future use
   # TODO: Fix the logic
@@ -208,7 +181,7 @@ locals {
   }
 
   enable_sec_interface_compute = local.enable_protocol == false && data.ibm_is_instance_profile.compute_profile[0].bandwidth[0].value >= 64000 ? true : false
-  enable_sec_interface_storage = local.enable_protocol == false && var.storage_type != "persistent" && data.ibm_is_instance_profile.storage[0].bandwidth[0].value >= 64000 ? true : false
+  enable_sec_interface_storage = local.enable_protocol == false && var.storage_type != "baremetal" && data.ibm_is_instance_profile.storage[0].bandwidth[0].value >= 64000 ? true : false
 
   # Security Groups
   protocol_secondary_security_group = distinct(flatten([
@@ -484,6 +457,27 @@ locals {
 }
 
 locals {
+  block_storage_volumes = length(var.volume_storages) > 0 ? [{
+    name     = "data-volume"
+    profile  = "sdp"
+    capacity = try(var.volume_storages[0].block_volume_capacity, "")
+    iops     = try(var.volume_storages[0].block_volume_iops, "")
+  }] : []
+}
+
+# Setting boot volume parameters with defaults if not provided as sdp
+locals {
+  boot_volume_profile = coalesce(
+    try(var.volume_storages[0].boot_volume_profile, null),
+    "sdp"
+  )
+  boot_volume_iops = (
+    local.boot_volume_profile == "general-purpose"
+    ? null
+    : (length(var.volume_storages) > 0 ? try(var.volume_storages[0].boot_volume_iops, 3000) : 3000)
+  )
+  boot_volume_size = length(var.volume_storages) > 0 ? try(var.volume_storages[0].boot_volume_size, 100) : 100
+
   catalog_offering = {
     version_crn = "crn:v1:bluemix:public:globalcatalog-collection:global::1082e7d2-5e2f-0a11-a3bc-f88a8e1931fc:version:61e655c5-40b6-4b68-a6ab-e6c77a457fce-global/e08b9ca5-699c-4779-8369-1a0c1ed54b30-global"
     plan_crn    = "crn:v1:bluemix:public:globalcatalog-collection:global::1082e7d2-5e2f-0a11-a3bc-f88a8e1931fc:plan:sw.1082e7d2-5e2f-0a11-a3bc-f88a8e1931fc.d114e7ab-4f7e-40c4-98cc-f0c000cbf3a7-global"

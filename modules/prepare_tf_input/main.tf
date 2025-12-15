@@ -102,7 +102,11 @@ resource "local_sensitive_file" "prepare_tf_input" {
   "cspm_enabled": ${var.cspm_enabled},
   "app_config_plan": "${var.app_config_plan}",
   "scale_afm_bucket_config_details": ${local.scale_afm_bucket_config_details},
-  "scale_afm_cos_hmac_key_params": ${local.scale_afm_cos_hmac_key_params}
+  "scale_afm_cos_hmac_key_params": ${local.scale_afm_cos_hmac_key_params},
+  "volume_storages": ${local.volume_storages},
+  "enable_private_path_nlb": ${var.enable_private_path_nlb},
+  "protocol_instance_eth1_mtu": ${var.protocol_instance_eth1_mtu},
+  "mtu_value": ${var.mtu_value}
 }
 EOT
   filename = local.schematics_inputs_path

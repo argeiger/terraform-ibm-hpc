@@ -3,8 +3,8 @@
 ##############################################################################
 variable "storage_type" {
   type        = string
-  default     = "scratch"
-  description = "Select the required storage type(scratch/persistent/eval)."
+  default     = "vsi"
+  description = "Select the required storage type(vsi/baremetal/eval)."
 }
 
 ##############################################################################
@@ -80,6 +80,12 @@ variable "storage_security_group_id" {
   description = "Existing Scale storage security group id"
 }
 
+variable "mtu_value" {
+  type        = number
+  default     = 9000
+  description = "Default MTU is 9000. For deployments using Spectrum Scale with LSF and PPNLB enabled, configure the MTU at 8500 or lower to ensure compatibility."
+}
+
 ##############################################################################
 # Compute Variables
 ##############################################################################
@@ -106,7 +112,7 @@ variable "client_instances" {
   default = [{
     profile = "cx2-2x4"
     count   = 2
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
   }]
   description = "Number of instances to be launched for client."
 }
@@ -139,7 +145,7 @@ variable "management_instances" {
   default = [{
     profile = "cx2-2x4"
     count   = 2
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
   }]
   description = "Number of instances to be launched for management."
 }
@@ -155,7 +161,7 @@ variable "static_compute_instances" {
   default = [{
     profile = "cx2-2x4"
     count   = 1
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
   }]
   description = "Min Number of instances to be launched for compute cluster."
 }
@@ -171,7 +177,7 @@ variable "dynamic_compute_instances" {
   default = [{
     profile = "cx2-2x4"
     count   = 250
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
   }]
   description = "MaxNumber of instances to be launched for compute cluster."
 }
@@ -217,7 +223,7 @@ variable "storage_instances" {
   default = [{
     profile         = "bx2d-32x128"
     count           = 0
-    image           = "ibm-redhat-8-10-minimal-amd64-4"
+    image           = "ibm-redhat-8-10-minimal-amd64-10"
     filesystem_name = "fs1"
   }]
   description = "Number of instances to be launched for storage cluster."
@@ -235,7 +241,7 @@ variable "storage_servers" {
   default = [{
     profile    = "cx2d-metal-96x192"
     count      = 0
-    image      = "ibm-redhat-8-10-minimal-amd64-4"
+    image      = "ibm-redhat-8-10-minimal-amd64-10"
     filesystem = "fs1"
   }]
   description = "Number of BareMetal Servers to be launched for storage cluster."
@@ -281,18 +287,6 @@ variable "colocate_protocol_instances" {
   type        = bool
   default     = true
   description = "Enable it to use storage instances as protocol instances"
-}
-
-variable "nsd_details" {
-  type = list(
-    object({
-      profile  = string
-      capacity = optional(number)
-      iops     = optional(number)
-    })
-  )
-  default     = null
-  description = "NSD details"
 }
 
 ##############################################################################
@@ -388,7 +382,7 @@ variable "ldap_instances" {
   )
   default = [{
     profile = "cx2-2x4"
-    image   = "ibm-ubuntu-22-04-5-minimal-amd64-1"
+    image   = "ibm-ubuntu-22-04-5-minimal-amd64-8"
   }]
   description = "Profile and Image name to be used for provisioning the LDAP instances. Note: Debian based OS are only supported for the LDAP feature"
 }
@@ -433,7 +427,7 @@ variable "gklm_instances" {
   default = [{
     profile = "bx2-2x8"
     count   = 2
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
   }]
   description = "Number of instances to be launched for client."
 }
@@ -537,8 +531,29 @@ variable "ldap_security_group_name" {
   description = "Provide the security group name to provision the ldap nodes. If set to null, the solution will automatically create the necessary security group and rules. If you choose to use an existing security group, ensure it has the appropriate rules configured for the ldap nodes to function properly."
 }
 
+variable "volume_storages" {
+  description = "The Block Volume Storage Profile to use for the boot volume of the virtual instance"
+  type = list(
+    object({
+      boot_volume_profile    = optional(string)
+      boot_volume_iops       = optional(string)
+      boot_volume_size       = optional(number)
+      boot_volume_disk_grow  = optional(bool, false)
+      block_volume_capacity  = optional(number)
+      block_volume_iops      = optional(number)
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+  default = []
+}
+
 variable "lsf_pay_per_use" {
   type        = bool
   default     = true
   description = "When lsf_pay_per_use is set to true, the LSF cluster nodes are provisioned using predefined custom images under a pay-per-use pricing plan, where billing is based on vCPU usage per hour. In this mode, providing custom images for the nodes is not required, and Bring Your Own Image (BYOL) is not supported. The pay-per-use option is available only for FP15 images. If you set the variable to false, the automation uses default images for all cluster nodes and enables support for BYOL, with no pay-per-use billing applied."
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "Enable the Private Path NLB for CES. When enabled, MTU must be 8500 or lower because PPNLB does not support MTU 9000. When disabled, protocol nodes can safely use MTU 9000."
 }

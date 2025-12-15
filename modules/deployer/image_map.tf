@@ -26,17 +26,17 @@ locals {
       "ca-tor"   = "r038-9448213f-22ce-4a6a-b6b0-22dd6ed9fbb3"
       "ca-mon"   = "r058-b3211406-9eec-4148-aafb-d6ab7c26a6eb"
     },
-    "hpcc-scale-deployer-v1" = {
-      "eu-es"    = "r050-9ae3a0b4-6353-4c8e-84eb-c3b1cd4255fa"
-      "eu-gb"    = "r018-73480732-827e-440f-82aa-9cd2221b71ee"
-      "eu-de"    = "r010-0a275d00-6d18-49b1-a961-3082e5376864"
-      "us-east"  = "r014-7304cbc7-61f8-43cf-9098-ebdef3287b81"
-      "us-south" = "r006-be93bb57-4226-49c1-8089-d6ed95df071d"
-      "jp-tok"   = "r022-e84d39a4-0726-467e-aa1c-d482665ecc6f"
-      "jp-osa"   = "r034-6900c41a-b3f8-4c57-ae1a-fc54de86668f"
-      "au-syd"   = "r026-0f3084e9-53eb-4a32-8b7f-2e222ce843cd"
-      "br-sao"   = "r042-a97879cb-1e8a-4b9a-ba80-adcf7b8b37e7"
-      "ca-tor"   = "r038-73dfb66d-b9c3-4fbf-a6fe-8cd7c81325c6"
+    "hpcc-scale-deployer-v2" = {
+      "eu-es"    = "r050-8dd39af9-61e0-47eb-a51c-1aacb0194f5a"
+      "eu-gb"    = "r018-0917f64b-47d8-4eea-8507-836ba97514e4"
+      "eu-de"    = "r010-9618ddb7-b22c-4b34-b7e1-01628e284110"
+      "us-east"  = "r014-cde1ba22-520e-4dda-830f-f22a2e5b3cc0"
+      "us-south" = "r006-843aae28-750d-4e04-8690-b162bceefc3c"
+      "jp-tok"   = "r022-badefd3f-2c2b-4c3d-a017-ccea8c642482"
+      "jp-osa"   = "r034-3934f22f-05a6-465c-adf3-5aa6ab88916b"
+      "au-syd"   = "r026-0bce92f0-945e-4900-8226-0b551938736b"
+      "br-sao"   = "r042-7965adfa-fb7f-490b-8796-d2fc71b2688f"
+      "ca-tor"   = "r038-cfe2e5f0-4bfb-4a34-9d04-85127c4c5219"
     }
   }
 }

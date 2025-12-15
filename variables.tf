@@ -157,7 +157,7 @@ variable "deployer_instance" {
     profile = string
   })
   default = {
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
     profile = "bx2-8x32"
   }
   description = "Configuration for the deployer node, including the custom image and instance profile. By default, uses fixpack_15 image and a bx2-8x32 profile."
@@ -217,7 +217,7 @@ variable "management_instances" {
   default = [{
     profile = "cx2-2x4"
     count   = 0
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
   }]
   description = "Number of instances to be launched for management."
 }
@@ -234,7 +234,7 @@ variable "static_compute_instances" {
   default = [{
     profile    = "cx2-2x4"
     count      = 0
-    image      = "ibm-redhat-8-10-minimal-amd64-4"
+    image      = "ibm-redhat-8-10-minimal-amd64-10"
     filesystem = "/ibm/fs1"
   }]
   description = "Min Number of instances to be launched for compute cluster."
@@ -251,7 +251,7 @@ variable "dynamic_compute_instances" {
   default = [{
     profile = "cx2-2x4"
     count   = 500
-    image   = "ibm-redhat-8-10-minimal-amd64-4"
+    image   = "ibm-redhat-8-10-minimal-amd64-10"
   }]
   description = "MaxNumber of instances to be launched for compute cluster."
 }
@@ -297,7 +297,7 @@ variable "storage_instances" {
   default = [{
     profile    = "bx2d-32x128"
     count      = 0
-    image      = "ibm-redhat-8-10-minimal-amd64-4"
+    image      = "ibm-redhat-8-10-minimal-amd64-10"
     filesystem = "/ibm/fs1"
   }]
   description = "Number of instances to be launched for storage cluster."
@@ -315,7 +315,7 @@ variable "storage_servers" {
   default = [{
     profile    = "cx2d-metal-96x192"
     count      = 0
-    image      = "ibm-redhat-8-10-minimal-amd64-4"
+    image      = "ibm-redhat-8-10-minimal-amd64-10"
     filesystem = "/ibm/fs1"
   }]
   description = "Number of BareMetal Servers to be launched for storage cluster."
@@ -379,18 +379,6 @@ variable "storage_gui_password" {
   description = "Password for storage cluster GUI"
 }
 
-variable "nsd_details" {
-  type = list(
-    object({
-      profile  = string
-      capacity = optional(number)
-      iops     = optional(number)
-    })
-  )
-  default     = null
-  description = "Storage scale NSD details"
-}
-
 variable "storage_security_group_id" {
   type        = string
   default     = null
@@ -420,6 +408,12 @@ variable "custom_file_shares" {
   }
 }
 
+variable "mtu_value" {
+  type        = number
+  default     = 9000
+  description = "Default MTU is 9000. For deployments using Spectrum Scale with LSF and PPNLB enabled, configure the MTU at 8500 or lower to ensure compatibility."
+}
+
 ##############################################################################
 # DNS Variables
 ##############################################################################
@@ -442,6 +436,7 @@ variable "dns_domain_names" {
     protocol = optional(string)
     client   = optional(string)
     gklm     = optional(string)
+    ppnlb    = optional(string)
   })
   default = {
     compute  = "comp.com"
@@ -449,6 +444,7 @@ variable "dns_domain_names" {
     protocol = "ces.com"
     client   = "clnt.com"
     gklm     = "gklm.com"
+    ppnlb    = "strgscale.private"
   }
   description = "IBM Cloud HPC DNS domain names."
 }
@@ -887,7 +883,7 @@ variable "ldap_instance" {
   )
   default = [{
     profile = "cx2-2x4"
-    image   = "ibm-ubuntu-22-04-5-minimal-amd64-1"
+    image   = "ibm-ubuntu-22-04-5-minimal-amd64-8"
   }]
   description = "Profile and Image name to be used for provisioning the LDAP instances. Note: Debian based OS are only supported for the LDAP feature"
 }
@@ -949,8 +945,8 @@ variable "spectrumscale_rpms_path" {
 
 variable "storage_type" {
   type        = string
-  default     = "scratch"
-  description = "Select the required storage type(scratch/persistent/eval)."
+  default     = "vsi"
+  description = "Select the required storage type(vsi/baremetal/eval)."
 }
 
 variable "using_packer_image" {
@@ -1199,8 +1195,58 @@ variable "login_security_group_name" {
   }
 }
 
+variable "volume_storages" {
+  description = "Configures the boot and block volumes for each instance. Boot volumes use the SDP profile by default but can be changed to a general-purpose profile if required by the workload. If the boot volume profile is set to general-purpose, the IOPS value should be set to 0 or null, as IOPS are not supported for that profile. Block volumes are always created with the SDP profile to maintain performance standards. You can specify optional boot volume settings (profile, size, IOPS), while block volume capacity and IOPS are mandatory. Both volume types support an optional auto-grow feature that allows disk size to increase automatically when needed through automation."
+  type = list(
+    object({
+      boot_volume_profile    = optional(string)
+      boot_volume_iops       = optional(string)
+      boot_volume_size       = optional(number)
+      boot_volume_disk_grow  = optional(bool, false)
+      block_volume_capacity  = optional(number)
+      block_volume_iops      = optional(number)
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+  default = [{
+    boot_volume_profile    = "sdp"
+    boot_volume_size       = 100
+    boot_volume_iops       = 3000 # IOPS is not applicable for general-purpose profile
+    boot_volume_disk_grow  = false
+    block_volume_capacity  = 500
+    block_volume_iops      = 20000
+    block_volume_disk_grow = false
+  }]
+}
+
+##############################################################################
+# Private Path NLB Variables
+##############################################################################
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  default     = false
+  description = "When set to true, provisions a private path Network Load Balancer that enables CES (NFS) storage access for the cluster. The private path integrates with the Scale NFS nodes to provide a secure, high-performance method of delivering file storage to clients within the same VPC, ensuring direct and efficient access to the CES storage nodes."
+}
+
 variable "lsf_pay_per_use" {
   type        = bool
   default     = true
   description = "When lsf_pay_per_use is set to true, the LSF cluster nodes are provisioned using predefined custom images under a pay-per-use pricing plan, where billing is based on vCPU usage per hour. In this mode, providing custom images for the nodes is not required, and Bring Your Own Image (BYOL) is not supported. The pay-per-use option is available only for FP15 images. If you set the variable to false, the automation uses default images for all cluster nodes and enables support for BYOL, with no pay-per-use billing applied."
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "Specifies the MTU value for the protocol instance on eth1. When Private Path NLB (PPNLB) is enabled, the MTU must be set within the supported range of 1500 to 8500; values above 8500 will cause cluster mount operations to fail. When PPNLB is disabled, the MTU can use the default value of 9000"
+  default     = 9000
+
+  validation {
+    condition = (
+      var.protocol_instance_eth1_mtu >= 1500 &&
+      var.protocol_instance_eth1_mtu <= (
+        var.enable_private_path_nlb ? 8500 : 9000
+      )
+    )
+    error_message = "MTU must be between 1500-8500 when private path NLB is enabled, or 1500-9000 when disabled."
+  }
 }

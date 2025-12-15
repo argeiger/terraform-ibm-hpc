@@ -20,6 +20,7 @@ locals {
 locals {
   # dependency: landing_zone -> deployer
   vpc_id                     = var.vpc_name == null ? one(module.landing_zone.vpc_id) : data.ibm_is_vpc.existing_vpc[0].id
+  vpc_default_security_group = var.vpc_name == null ? one(module.landing_zone.vpc_default_security_group) : data.ibm_is_vpc.existing_vpc[0].default_security_group
   vpc_name                   = var.vpc_name == null ? one(module.landing_zone.vpc_name) : var.vpc_name
   kms_encryption_enabled     = local.key_management != null ? true : false
   boot_volume_encryption_key = local.key_management != null && var.enable_deployer ? one(module.landing_zone.boot_volume_encryption_key)["crn"] : null
@@ -27,24 +28,37 @@ locals {
 
   encryption_filesystem_mountpoint = jsonencode(
     var.scale_encryption_type == "key_protect" ? (
-      try(var.storage_instances[0].filesystem, "") != "" ?
+
+      (
+        var.storage_type != "baremetal" ?
+        try(var.storage_instances[0].filesystem, "") :
+        try(var.storage_servers[0].filesystem, "")
+      ) != "" ?
       element(
-        split("/", var.storage_instances[0].filesystem),
-        length(split("/", var.storage_instances[0].filesystem)) - 1
+        split("/", (
+          var.storage_type != "baremetal" ?
+          try(var.storage_instances[0].filesystem, "") :
+          try(var.storage_servers[0].filesystem, "")
+        )),
+        length(
+          split("/", (
+            var.storage_type != "baremetal" ?
+            try(var.storage_instances[0].filesystem, "") :
+            try(var.storage_servers[0].filesystem, "")
+          ))
+        ) - 1
       ) :
-      try(var.storage_servers[0].filesystem, "") != "" ?
+
+      # fallback if both above are empty
       element(
-        split("/", var.storage_servers[0].filesystem),
-        length(split("/", var.storage_servers[0].filesystem)) - 1
-      ) :
-      element(
-        split("/", var.filesystem_config[0].filesystem),
-        length(split("/", var.filesystem_config[0].filesystem)) - 1
+        split("/", try(var.filesystem_config[0].filesystem, "")),
+        length(split("/", try(var.filesystem_config[0].filesystem, ""))) - 1
       )
+
     ) : ""
   )
 
-  filesystem_mountpoint = var.storage_type == "persistent" ? (var.storage_servers[0]["filesystem"] != "" && var.storage_servers[0]["filesystem"] != null ? var.storage_servers[0]["filesystem"] : var.filesystem_config[0]["filesystem"]) : (var.storage_instances[0]["filesystem"] != "" && var.storage_instances[0]["filesystem"] != null ? var.storage_instances[0]["filesystem"] : var.filesystem_config[0]["filesystem"])
+  filesystem_mountpoint = var.storage_type == "baremetal" ? (var.storage_servers[0]["filesystem"] != "" && var.storage_servers[0]["filesystem"] != null ? var.storage_servers[0]["filesystem"] : var.filesystem_config[0]["filesystem"]) : (var.storage_instances[0]["filesystem"] != "" && var.storage_instances[0]["filesystem"] != null ? var.storage_instances[0]["filesystem"] : var.filesystem_config[0]["filesystem"])
 
   cos_data = module.landing_zone.cos_buckets_data
   # Future use
@@ -57,9 +71,10 @@ locals {
   simplified_management_vsi_data = var.enable_deployer ? [] : [
     for outer in module.landing_zone_vsi[0].management_vsi_data : [
       for vsi in outer : {
-        id           = try(vsi.id, null),
-        ipv4_address = try(vsi.ipv4_address, try(vsi.primary_network_interface_detail.primary_ipv4_address, null)),
-        name         = try(vsi.name, null)
+        id                                 = try(vsi.id, null),
+        ipv4_address                       = try(vsi.ipv4_address, try(vsi.primary_network_interface_detail.primary_ipv4_address, null)),
+        secondary_network_interface_detail = try(vsi.secondary_network_interface_detail, null),
+        name                               = try(vsi.name, null)
       }
     ]
   ]
@@ -68,15 +83,43 @@ locals {
   simplified_compute_vsi_data = var.enable_deployer ? [] : [
     for outer in module.landing_zone_vsi[0].compute_vsi_data : [
       for vsi in outer : {
-        id           = try(vsi.id, null),
-        ipv4_address = try(vsi.ipv4_address, try(vsi.primary_network_interface_detail.primary_ipv4_address, null)),
-        name         = try(vsi.name, null)
+        id                                 = try(vsi.id, null),
+        ipv4_address                       = try(vsi.ipv4_address, try(vsi.primary_network_interface_detail.primary_ipv4_address, null)),
+        secondary_network_interface_detail = try(vsi.secondary_network_interface_detail, null),
+        name                               = try(vsi.name, null)
+      }
+    ]
+  ]
+
+  simplified_compute_management_vsi_data = var.enable_deployer ? [] : [
+    for outer in module.landing_zone_vsi[0].compute_management_vsi_data : [
+      for vsi in outer : {
+        id                                 = try(vsi.id, null),
+        ipv4_address                       = try(vsi.ipv4_address, try(vsi.primary_network_interface_detail.primary_ipv4_address, null)),
+        secondary_network_interface_detail = try(vsi.secondary_network_interface_detail, null),
+        name                               = try(vsi.name, null)
       }
     ]
   ]
 
   simplified_storage_vsi_data = var.enable_deployer ? [] : [
     for outer in flatten(module.landing_zone_vsi[0].storage_vsi_data) :
+    { id           = try(outer.id, null),
+      ipv4_address = try(outer.ipv4_address, try(outer.primary_network_interface_detail.primary_ipv4_address, null)),
+      name         = try(outer.name, null)
+    }
+  ]
+
+  simplified_client_vsi_data = var.enable_deployer ? [] : [
+    for outer in flatten(module.landing_zone_vsi[0].client_vsi_data) :
+    { id           = try(outer.id, null),
+      ipv4_address = try(outer.ipv4_address, try(outer.primary_network_interface_detail.primary_ipv4_address, null)),
+      name         = try(outer.name, null)
+    }
+  ]
+
+  simplified_afm_vsi_data = var.enable_deployer ? [] : [
+    for outer in flatten(module.landing_zone_vsi[0].afm_vsi_data) :
     { id           = try(outer.id, null),
       ipv4_address = try(outer.ipv4_address, try(outer.primary_network_interface_detail.primary_ipv4_address, null)),
       name         = try(outer.name, null)
@@ -93,8 +136,8 @@ locals {
   protocol_instances    = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].protocol_vsi_data])
   protocol_bm_instances = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].protocol_bms_data])
   gklm_instances        = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].gklm_vsi_data])
-  client_instances      = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].client_vsi_data])
-  afm_instances         = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].afm_vsi_data])
+  client_instances      = var.enable_deployer ? [] : local.simplified_client_vsi_data
+  afm_instances         = var.enable_deployer ? [] : local.simplified_afm_vsi_data
   afm_bm_instances      = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].afm_bms_data])
   ldap_instances        = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].ldap_vsi_data])
   tie_brkr_instances    = var.enable_deployer ? [] : flatten(module.landing_zone_vsi[0].storage_cluster_tie_breaker_vsi_data)
@@ -105,7 +148,7 @@ locals {
   storage_tie_breaker_bms_name_with_vol_mapping = var.enable_deployer ? [] : flatten([module.landing_zone_vsi[0].storage_tie_breaker_bms_name_with_vol_mapping])
 
   management_instance_count     = sum(var.management_instances[*]["count"])
-  storage_instance_count        = var.storage_type == "persistent" ? sum(var.storage_servers[*]["count"]) : sum(var.storage_instances[*]["count"])
+  storage_instance_count        = var.storage_type == "baremetal" ? sum(var.storage_servers[*]["count"]) : sum(var.storage_instances[*]["count"])
   client_instance_count         = sum(var.client_instances[*]["count"])
   protocol_instance_count       = sum(var.protocol_instances[*]["count"])
   static_compute_instance_count = sum(var.static_compute_instances[*]["count"])
@@ -404,17 +447,22 @@ locals {
     }
   ]
 
+  compute_sec_vnic_dns_record_details      = var.enable_deployer ? [] : flatten(local.simplified_compute_vsi_data)
+  compute_mgmt_sec_vnic_dns_record_details = var.enable_deployer ? [] : flatten(local.simplified_compute_management_vsi_data)
+
   raw_compute_sec_vnic_dns_record_details = local.enable_sec_interface_compute ? [
-    for record in flatten([for details in local.compute_instances : details.secondary_network_interface_detail]) : {
-      ipv4_address = record.primary_ipv4_address
-      name         = record.name
+    for record in flatten([local.compute_sec_vnic_dns_record_details]) : {
+      id           = record.secondary_network_interface_detail.id
+      ipv4_address = record.secondary_network_interface_detail.primary_ipv4_address
+      name         = "${record.name}-secondary-vni-0"
     }
   ] : []
 
   raw_compute_mgmt_sec_vnic_dns_record_details = local.enable_sec_interface_compute ? [
-    for record in flatten([for details in local.comp_mgmt_instances : details.secondary_network_interface_detail]) : {
-      ipv4_address = record.primary_ipv4_address
-      name         = record.name
+    for record in flatten([local.compute_mgmt_sec_vnic_dns_record_details]) : {
+      id           = record.secondary_network_interface_detail.id
+      ipv4_address = record.secondary_network_interface_detail.primary_ipv4_address
+      name         = "${record.name}-secondary-vni-0"
     }
   ] : []
 
@@ -425,6 +473,7 @@ locals {
       rdata = instance["ipv4_address"]
     }
   ]
+
   storage_dns_records = [
     for instance in concat(local.storage_instances, local.protocol_instances, local.raw_bm_protocol_dns_record_details, local.afm_instances, local.raw_bm_afm_dns_record_details, local.tie_brkr_instances, local.strg_mgmt_instances, local.raw_bm_storage_servers_dns_record_details, local.raw_bm_tie_breaker_dns_record_details, local.raw_compute_sec_vnic_dns_record_details, local.raw_compute_mgmt_sec_vnic_dns_record_details) :
     {
@@ -615,7 +664,7 @@ locals {
   scale_ces_enabled               = local.protocol_instance_count > 0 ? true : false
   is_colocate_protocol_subset     = local.scale_ces_enabled && var.colocate_protocol_instances ? local.protocol_instance_count < local.storage_instance_count ? true : false : false
   enable_sec_interface_compute    = local.scale_ces_enabled == false && data.ibm_is_instance_profile.compute_profile.bandwidth[0].value >= 64000 ? true : false
-  enable_sec_interface_storage    = local.scale_ces_enabled == false && var.storage_type != "persistent" && data.ibm_is_instance_profile.storage_profile.bandwidth[0].value >= 64000 ? true : false
+  enable_sec_interface_storage    = local.scale_ces_enabled == false && var.storage_type != "baremetal" && data.ibm_is_instance_profile.storage_profile.bandwidth[0].value >= 64000 ? true : false
   enable_mrot_conf                = local.enable_sec_interface_compute && local.enable_sec_interface_storage ? true : false
   enable_afm                      = local.afm_instance_count > 0 ? true : false
   scale_afm_bucket_config_details = module.landing_zone.scale_afm_bucket_config_details
@@ -649,7 +698,7 @@ locals {
   strg_tie_breaker_instance_ids   = flatten(local.tie_brkr_instances[*]["id"])
   strg_tie_breaker_instance_names = try(tolist([for name_details in flatten(local.tie_brkr_instances[*]["name"]) : "${name_details}.${var.dns_domain_names["storage"]}"]), [])
 
-  #  secondary_compute_instance_private_ips = flatten(local.compute_instances[*]["secondary_ipv4_address"])
+  # secondary_compute_instance_private_ips = flatten(local.compute_instances[*]["secondary_ipv4_address"])
   # secondary_storage_instance_private_ips = flatten(local.storage_instances[*]["secondary_ipv4_address"])
 
   protocol_instance_private_ips = flatten(local.protocol_instances[*]["ipv4_address"])
@@ -660,7 +709,7 @@ locals {
   protocol_bm_instance_ids         = flatten(local.protocol_bm_instances[*]["id"])
   protocol_bm_instance_names       = try(tolist([for name_details in flatten(local.protocol_bm_instances[*]["name"]) : "${name_details}.${var.dns_domain_names["storage"]}"]), [])
 
-  protocol_cluster_instance_names = var.enable_deployer ? [] : slice((concat(local.protocol_instance_names, local.protocol_bm_instance_names, (var.storage_type == "persistent" ? local.strg_servers_names : local.strg_instance_names))), 0, local.protocol_instance_count)
+  protocol_cluster_instance_names = var.enable_deployer ? [] : slice((concat(local.protocol_instance_names, local.protocol_bm_instance_names, (var.storage_type == "baremetal" ? local.strg_servers_names : local.strg_instance_names))), 0, local.protocol_instance_count)
 
   afm_instance_private_ips = flatten(local.afm_instances[*]["ipv4_address"])
   afm_instance_ids         = flatten(local.afm_instances[*]["id"])
@@ -689,27 +738,27 @@ locals {
 
 locals {
 
-  storage_instance_private_ips = var.storage_type != "persistent" ? local.enable_afm == true ? concat(local.strg_instance_private_ips, local.afm_private_ips_final) : local.strg_instance_private_ips : []
-  storage_instance_ids         = var.storage_type != "persistent" ? local.enable_afm == true ? concat(local.strg_instance_ids, local.afm_ids_final) : local.strg_instance_ids : []
-  storage_instance_names       = var.storage_type != "persistent" ? local.enable_afm == true ? concat(local.strg_instance_names, local.afm_names_final) : local.strg_instance_names : []
-  storage_ips_with_vol_mapping = var.storage_type != "persistent" ? module.landing_zone_vsi[*].instance_ips_with_vol_mapping : local.storage_bm_name_with_vol_mapping
+  storage_instance_private_ips = var.storage_type != "baremetal" ? local.enable_afm == true ? concat(local.strg_instance_private_ips, local.afm_private_ips_final) : local.strg_instance_private_ips : []
+  storage_instance_ids         = var.storage_type != "baremetal" ? local.enable_afm == true ? concat(local.strg_instance_ids, local.afm_ids_final) : local.strg_instance_ids : []
+  storage_instance_names       = var.storage_type != "baremetal" ? local.enable_afm == true ? concat(local.strg_instance_names, local.afm_names_final) : local.strg_instance_names : []
+  storage_ips_with_vol_mapping = var.storage_type != "baremetal" ? module.landing_zone_vsi[*].instance_ips_with_vol_mapping : local.storage_bm_name_with_vol_mapping
 
-  storage_cluster_instance_private_ips = local.scale_ces_enabled == false ? local.storage_instance_private_ips : concat(local.storage_instance_private_ips, local.protocol_instance_private_ips)
-  storage_cluster_instance_ids         = local.scale_ces_enabled == false ? local.storage_instance_ids : concat(local.storage_instance_ids, local.protocol_instance_ids)
-  storage_cluster_instance_names       = local.scale_ces_enabled == false ? local.storage_instance_names : concat(local.storage_instance_names, local.protocol_instance_names)
+  storage_cluster_instance_private_ips = local.scale_ces_enabled == false ? local.storage_instance_private_ips : concat(local.storage_instance_private_ips, local.protocol_instance_private_ips, local.protocol_bm_instance_private_ips)
+  storage_cluster_instance_ids         = local.scale_ces_enabled == false ? local.storage_instance_ids : concat(local.storage_instance_ids, local.protocol_instance_ids, local.protocol_bm_instance_ids)
+  storage_cluster_instance_names       = local.scale_ces_enabled == false ? local.storage_instance_names : concat(local.storage_instance_names, local.protocol_instance_names, local.protocol_bm_instance_names)
 
-  baremetal_instance_private_ips = var.storage_type == "persistent" ? local.enable_afm == true ? concat(local.strg_servers_private_ips, local.afm_private_ips_final) : local.strg_servers_private_ips : []
-  baremetal_instance_ids         = var.storage_type == "persistent" ? local.enable_afm == true ? concat(local.strg_servers_ids, local.afm_ids_final) : local.strg_servers_ids : []
-  baremetal_instance_names       = var.storage_type == "persistent" ? local.enable_afm == true ? concat(local.strg_servers_names, local.afm_names_final) : local.strg_servers_names : []
+  baremetal_instance_private_ips = var.storage_type == "baremetal" ? local.enable_afm == true ? concat(local.strg_servers_private_ips, local.afm_private_ips_final) : local.strg_servers_private_ips : []
+  baremetal_instance_ids         = var.storage_type == "baremetal" ? local.enable_afm == true ? concat(local.strg_servers_ids, local.afm_ids_final) : local.strg_servers_ids : []
+  baremetal_instance_names       = var.storage_type == "baremetal" ? local.enable_afm == true ? concat(local.strg_servers_names, local.afm_names_final) : local.strg_servers_names : []
 
-  baremetal_cluster_instance_private_ips = var.storage_type == "persistent" && local.scale_ces_enabled == false ? local.baremetal_instance_private_ips : concat(local.baremetal_instance_private_ips, local.protocol_instance_private_ips, local.protocol_bm_instance_private_ips)
-  baremetal_cluster_instance_ids         = var.storage_type == "persistent" && local.scale_ces_enabled == false ? local.baremetal_instance_ids : concat(local.baremetal_instance_ids, local.protocol_instance_ids, local.protocol_bm_instance_ids)
-  baremetal_cluster_instance_names       = var.storage_type == "persistent" && local.scale_ces_enabled == false ? local.baremetal_instance_names : concat(local.baremetal_instance_names, local.protocol_instance_names, local.protocol_bm_instance_names)
+  baremetal_cluster_instance_private_ips = var.storage_type == "baremetal" && local.scale_ces_enabled == false ? local.baremetal_instance_private_ips : concat(local.baremetal_instance_private_ips, local.protocol_instance_private_ips, local.protocol_bm_instance_private_ips)
+  baremetal_cluster_instance_ids         = var.storage_type == "baremetal" && local.scale_ces_enabled == false ? local.baremetal_instance_ids : concat(local.baremetal_instance_ids, local.protocol_instance_ids, local.protocol_bm_instance_ids)
+  baremetal_cluster_instance_names       = var.storage_type == "baremetal" && local.scale_ces_enabled == false ? local.baremetal_instance_names : concat(local.baremetal_instance_names, local.protocol_instance_names, local.protocol_bm_instance_names)
 
-  tie_breaker_storage_instance_private_ips = var.storage_type != "persistent" ? local.strg_tie_breaker_private_ips : local.bm_tie_breaker_private_ips
-  tie_breaker_storage_instance_ids         = var.storage_type != "persistent" ? local.strg_tie_breaker_instance_ids : local.bm_tie_breaker_ids
-  tie_breaker_storage_instance_names       = var.storage_type != "persistent" ? local.strg_tie_breaker_instance_names : local.bm_tie_breaker_names
-  tie_breaker_ips_with_vol_mapping         = var.storage_type != "persistent" ? module.landing_zone_vsi[*].instance_ips_with_vol_mapping_tie_breaker : local.storage_tie_breaker_bms_name_with_vol_mapping
+  tie_breaker_storage_instance_private_ips = var.storage_type != "baremetal" ? local.strg_tie_breaker_private_ips : local.bm_tie_breaker_private_ips
+  tie_breaker_storage_instance_ids         = var.storage_type != "baremetal" ? local.strg_tie_breaker_instance_ids : local.bm_tie_breaker_ids
+  tie_breaker_storage_instance_names       = var.storage_type != "baremetal" ? local.strg_tie_breaker_instance_names : local.bm_tie_breaker_names
+  tie_breaker_ips_with_vol_mapping         = var.storage_type != "baremetal" ? module.landing_zone_vsi[*].instance_ips_with_vol_mapping_tie_breaker : local.storage_tie_breaker_bms_name_with_vol_mapping
 
   storage_subnet_cidr = local.storage_instance_count > 0 && var.storage_subnet_id != null ? jsonencode((data.ibm_is_subnet.existing_storage_subnets[*].ipv4_cidr_block)[0]) : ""
   compute_subnet_cidr = local.static_compute_instance_count > 0 && var.compute_subnet_id != null ? jsonencode((data.ibm_is_subnet.existing_compute_subnets[*].ipv4_cidr_block)[0]) : ""
@@ -724,21 +773,67 @@ locals {
   storage_desc_memory          = data.ibm_is_instance_profile.storage_profile.memory[0].value
   storage_desc_vcpus_count     = data.ibm_is_instance_profile.storage_profile.vcpu_count[0].value
   storage_desc_bandwidth       = data.ibm_is_instance_profile.storage_profile.bandwidth[0].value
-  storage_memory               = var.storage_type == "persistent" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].memory[0].value : data.ibm_is_instance_profile.storage_profile.memory[0].value
-  storage_vcpus_count          = var.storage_type == "persistent" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].cpu_core_count[0].value : data.ibm_is_instance_profile.storage_profile.vcpu_count[0].value
-  storage_bandwidth            = var.storage_type == "persistent" ? local.sapphire_rapids_profile_check == true ? 200000 : 100000 : data.ibm_is_instance_profile.storage_profile.bandwidth[0].value
+  storage_memory               = var.storage_type == "baremetal" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].memory[0].value : data.ibm_is_instance_profile.storage_profile.memory[0].value
+  storage_vcpus_count          = var.storage_type == "baremetal" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].cpu_core_count[0].value : data.ibm_is_instance_profile.storage_profile.vcpu_count[0].value
+  storage_bandwidth            = var.storage_type == "baremetal" ? local.sapphire_rapids_profile_check == true ? 200000 : 100000 : data.ibm_is_instance_profile.storage_profile.bandwidth[0].value
   protocol_memory              = (local.scale_ces_enabled == true && var.colocate_protocol_instances == false) ? local.ces_server_type == false ? data.ibm_is_instance_profile.protocol_profile[0].memory[0].value : data.ibm_is_bare_metal_server_profile.protocol_bm_profile[0].memory[0].value : jsonencode(0)
   protocol_vcpus_count         = (local.scale_ces_enabled == true && var.colocate_protocol_instances == false) ? local.ces_server_type == false ? data.ibm_is_instance_profile.protocol_profile[0].vcpu_count[0].value : data.ibm_is_bare_metal_server_profile.protocol_bm_profile[0].cpu_core_count[0].value : jsonencode(0)
   protocol_bandwidth           = (local.scale_ces_enabled == true && var.colocate_protocol_instances == false) ? local.ces_server_type == false ? data.ibm_is_instance_profile.protocol_profile[0].bandwidth[0].value : local.sapphire_rapids_profile_check == true ? 200000 : 100000 : jsonencode(0)
-  storage_protocol_memory      = var.storage_type == "persistent" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].memory[0].value : data.ibm_is_instance_profile.storage_profile.memory[0].value
-  storage_protocol_vcpus_count = var.storage_type == "persistent" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].cpu_core_count[0].value : data.ibm_is_instance_profile.storage_profile.vcpu_count[0].value
-  storage_protocol_bandwidth   = var.storage_type == "persistent" ? local.sapphire_rapids_profile_check == true ? 200000 : 100000 : data.ibm_is_instance_profile.storage_profile.bandwidth[0].value
+  storage_protocol_memory      = var.storage_type == "baremetal" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].memory[0].value : data.ibm_is_instance_profile.storage_profile.memory[0].value
+  storage_protocol_vcpus_count = var.storage_type == "baremetal" ? data.ibm_is_bare_metal_server_profile.storage_bms_profile[0].cpu_core_count[0].value : data.ibm_is_instance_profile.storage_profile.vcpu_count[0].value
+  storage_protocol_bandwidth   = var.storage_type == "baremetal" ? local.sapphire_rapids_profile_check == true ? 200000 : 100000 : data.ibm_is_instance_profile.storage_profile.bandwidth[0].value
   afm_memory                   = local.afm_server_type == true ? data.ibm_is_bare_metal_server_profile.afm_bm_profile[0].memory[0].value : data.ibm_is_instance_profile.afm_server_profile[0].memory[0].value
   afm_vcpus_count              = local.afm_server_type == true ? data.ibm_is_bare_metal_server_profile.afm_bm_profile[0].cpu_core_count[0].value : data.ibm_is_instance_profile.afm_server_profile[0].vcpu_count[0].value
   afm_bandwidth                = local.afm_server_type == true ? local.sapphire_rapids_profile_check == true ? 200000 : 100000 : data.ibm_is_instance_profile.afm_server_profile[0].bandwidth[0].value
 
   protocol_reserved_name_ips_map = try({ for details in data.ibm_is_subnet_reserved_ips.protocol_subnet_reserved_ips[0].reserved_ips : details.name => details.address }, {})
   protocol_subnet_gateway_ip     = var.enable_deployer ? "" : local.scale_ces_enabled == true ? local.protocol_reserved_name_ips_map.ibm-default-gateway : ""
+
+  private_path_crn         = var.enable_deployer ? "" : var.enable_private_path_nlb ? module.private_path_nlb[0].lb_id.private_path_crn : ""
+  client_security_group_id = var.enable_deployer ? [] : module.landing_zone_vsi[0].client_sg_id
+  ibm_account_id           = var.enable_private_path_nlb ? data.ibm_iam_account_settings.account[0].account_id : ""
+  cloud_service_by_crn = [{
+    crn                          = local.private_path_crn
+    allow_dns_resolution_binding = true
+    vpe_name                     = format("%s-vpe-gateway", var.cluster_prefix) # Full control on the VPE name. If not specified, the VPE name will be computed based on prefix, vpc name and service name.
+    service_name                 = null                                         # Name of the service used to compute the name of the VPE. If not specified, the service name will be obtained from the crn.
+  }]
+
+  private_path_account_policies = [{
+    account       = local.ibm_account_id
+    access_policy = "permit"
+  }]
+
+  colo_ces_srvr_typ_tru_scratch_vsi_mem_ids     = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == true && local.ces_server_type == true && var.storage_type != "baremetal" ? slice((local.storage_instances[*].id), 0, local.protocol_instance_count) : [] : []
+  colo_ces_srvr_typ_fls_scratch_vsi_mem_ids     = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == true && local.ces_server_type == false && var.storage_type != "baremetal" ? slice((local.storage_instances[*].id), 0, local.protocol_instance_count) : [] : []
+  non_colo_ces_srvr_typ_tru_scratch_bm_mem_ids  = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == false && local.ces_server_type == true && var.storage_type != "baremetal" ? local.protocol_bm_instances[*].primary_reserved_ip : [] : []
+  non_colo_ces_srvr_typ_fls_scratch_vsi_mem_ids = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == false && local.ces_server_type == false && var.storage_type != "baremetal" ? local.protocol_instance_ids : [] : []
+
+  colo_ces_srvr_typ_tru_persistent_bm_mem_ids      = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == true && local.ces_server_type == true && var.storage_type == "baremetal" ? slice((local.storage_servers[*].primary_reserved_ip), 0, local.protocol_instance_count) : [] : []
+  colo_ces_srvr_typ_fls_persistent_bm_mem_ids      = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == true && local.ces_server_type == false && var.storage_type == "baremetal" ? slice((local.storage_servers[*].primary_reserved_ip), 0, local.protocol_instance_count) : [] : []
+  non_colo_ces_srvr_typ_tru_persistent_bm_mem_ids  = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == false && local.ces_server_type == true && var.storage_type == "baremetal" ? local.protocol_bm_instances[*].primary_reserved_ip : [] : []
+  non_colo_ces_srvr_typ_fls_persistent_vsi_mem_ids = var.enable_deployer ? [] : local.scale_ces_enabled && var.enable_private_path_nlb ? var.colocate_protocol_instances == false && local.ces_server_type == false && var.storage_type == "baremetal" ? local.protocol_instance_ids : [] : []
+
+  final_pool_vsi_ids = concat(local.colo_ces_srvr_typ_tru_scratch_vsi_mem_ids, local.colo_ces_srvr_typ_fls_scratch_vsi_mem_ids, local.non_colo_ces_srvr_typ_fls_scratch_vsi_mem_ids, local.non_colo_ces_srvr_typ_fls_persistent_vsi_mem_ids)
+  final_pool_bm_ids  = concat(local.non_colo_ces_srvr_typ_tru_scratch_bm_mem_ids, local.colo_ces_srvr_typ_tru_persistent_bm_mem_ids, local.colo_ces_srvr_typ_fls_persistent_bm_mem_ids, local.non_colo_ces_srvr_typ_tru_persistent_bm_mem_ids)
+
+  nlb_backend_pools = local.scale_ces_enabled ? [
+    {
+      pool_name                      = format("%s-nlb-pool", var.cluster_prefix)
+      pool_health_delay              = 5
+      pool_health_retries            = 2
+      pool_health_timeout            = 2
+      pool_health_type               = "tcp"
+      pool_member_port               = 2049
+      listener_port                  = 2049
+      pool_member_instance_ids       = local.final_pool_vsi_ids
+      pool_member_reserved_ip_ids    = local.final_pool_bm_ids
+      pool_health_monitor_port       = 2049
+      pool_algorithm                 = "round_robin"
+      listener_accept_proxy_protocol = false
+      # pool_member_application_load_balancer_id = null
+    }
+  ] : []
 }
 
 # Existing bastion Variables
@@ -785,3 +880,9 @@ locals {
 # locals {
 #   cloud_monitoring_instance_crn = var.enable_deployer ? "" : var.observability_monitoring_enable && length(module.cloud_monitoring_instance_creation) > 0 ? module.cloud_monitoring_instance_creation[0].cloud_monitoring_crn : null
 # }
+
+locals {
+  volume_storages_check  = var.storage_type == "baremetal" ? [] : var.volume_storages
+  boot_volume_disk_grow  = var.enable_deployer ? false : (length(local.volume_storages_check) > 0 ? var.volume_storages[0].boot_volume_disk_grow : false)
+  block_volume_disk_grow = var.enable_deployer ? false : (length(local.volume_storages_check) > 0 ? var.volume_storages[0].block_volume_disk_grow : false)
+}

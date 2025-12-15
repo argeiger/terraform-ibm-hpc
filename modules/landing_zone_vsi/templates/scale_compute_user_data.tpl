@@ -81,7 +81,11 @@ echo "DOMAIN=${compute_dns_domain}" >> "/etc/sysconfig/network-scripts/ifcfg-${c
 echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-${compute_interfaces}"
 chage -I -1 -m 0 -M 99999 -E -1 -W 14 vpcuser
 systemctl restart NetworkManager
-hostnamectl set-hostname "$(hostname).${compute_dns_domain}"
+if [ "${enable_sec_interface_compute}" == true ]; then
+    hostnamectl set-hostname "$(hostname).${storage_dns_domain}"
+else
+    hostnamectl set-hostname "$(hostname).${compute_dns_domain}"
+fi
 
 systemctl stop firewalld
 firewall-offline-cmd --zone=public --add-port=1191/tcp
@@ -108,5 +112,15 @@ if [ "${enable_sec_interface_compute}" == true ]; then
     nmcli con add type ethernet con-name eth1 ifname eth1
     echo "DOMAIN=\"${storage_dns_domain}\"" >> "/etc/sysconfig/network-scripts/ifcfg-${protocol_interfaces}"
     echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-${protocol_interfaces}"
+
+    # Wait until eth1 gets an IP
+    while ! ip -4 addr show eth1 | grep -q "inet "; do sleep 1; done
+
+    ETH1_IP=$(ip -4 addr show eth1 | awk '/inet /{print $2}' | cut -d/ -f1)
+    GW="$(echo $ETH1_IP | awk -F. '{print $1"."$2"."$3".1"}')"
+
+    ip rule add from $ETH1_IP table 101
+    ip route add default via $GW dev eth1 table 101
+
     systemctl restart NetworkManager
 fi

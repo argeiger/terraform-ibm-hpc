@@ -7,7 +7,13 @@
 
 #!/usr/bin/env bash
 exec > >(tee /var/log/ibm_spectrumscale_user-data.log)
-
+if grep -q "Red Hat" /etc/os-release
+then
+    USER=vpcuser
+elif grep -q "Ubuntu" /etc/os-release
+then
+    USER=ubuntu
+fi
 sed -i -e "s/^/no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command=\"echo \'Please client as the user \\\\\"$USER\\\\\" rather than the user \\\\\"root\\\\\".\';echo;sleep 5; exit 142\" /" /root/.ssh/authorized_keys
 
 # input parameters
@@ -106,7 +112,7 @@ sec_interface=$(nmcli -t con show --active | grep eth1 | cut -d ':' -f 1)
 nmcli conn del "$sec_interface"
 nmcli con add type ethernet con-name eth1 ifname eth1
 echo "DOMAIN=${protocol_dns_domain}" >> "/etc/sysconfig/network-scripts/ifcfg-${protocol_interfaces}"
-echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-${protocol_interfaces}"
+echo "MTU=${protocol_instance_eth1_mtu}" >> "/etc/sysconfig/network-scripts/ifcfg-${protocol_interfaces}"
 systemctl restart NetworkManager
 
 ###### TODO: Fix Me ######

@@ -5,10 +5,20 @@
 # Licensed under the Apache License v2.0
 ###################################################
 
+#!/usr/bin/env bash
 # Setup logging
 exec > >(tee /var/log/ibm_spectrumscale_user-data.log)
 exec 2>&1
-set -e
+
+if grep -q "Red Hat" /etc/os-release
+then
+    USER=vpcuser
+elif grep -q "Ubuntu" /etc/os-release
+then
+    USER=ubuntu
+fi
+
+sed -i -e "s/^/no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command=\"echo \'Please login as the user \\\\\"$USER\\\\\" rather than the user \\\\\"root\\\\\".\';echo;sleep 10; exit 142\" /" ~/.ssh/authorized_keys
 
 # Configure SSH
 mkdir -p ~/.ssh
@@ -22,7 +32,7 @@ ethtool -L eth0 combined 16
 
 # Banner configuration
 echo "###########################################################################################" >> /etc/motd
-echo "# You have logged in to AFM BareMetal Server.                                         #" >> /etc/motd
+echo "# You have logged in to Storage BareMetal Server.                                         #" >> /etc/motd
 echo "#                                                                                         #" >> /etc/motd
 echo "# Refer: https://cloud.ibm.com/docs/vpc?topic=vpc-bare-metal-servers-storage              #" >> /etc/motd
 echo "###########################################################################################" >> /etc/motd

@@ -36,6 +36,7 @@ locals {
     enable_vpc_flow_logs                          = var.enable_vpc_flow_logs
     custom_file_shares                            = var.custom_file_shares
     storage_security_group_id                     = var.storage_security_group_id
+    mtu_value                                     = var.mtu_value
     key_management                                = var.key_management
     management_instances                          = var.management_instances
     vpc_cidr                                      = var.vpc_cidr
@@ -108,6 +109,7 @@ locals {
     enable_vpc_flow_logs                          = lookup(local.override[local.override_type], "enable_vpc_flow_logs", local.config.enable_vpc_flow_logs)
     custom_file_shares                            = lookup(local.override[local.override_type], "custom_file_shares", local.config.custom_file_shares)
     storage_security_group_id                     = lookup(local.override[local.override_type], "storage_security_group_id", local.config.storage_security_group_id)
+    mtu_value                                     = lookup(local.override[local.override_type], "mtu_value", local.config.mtu_value)
     key_management                                = lookup(local.override[local.override_type], "key_management", local.config.key_management)
     management_instances                          = lookup(local.override[local.override_type], "management_instances", local.config.management_instances)
     vpc_cidr                                      = lookup(local.override[local.override_type], "vpc_cidr", local.config.vpc_cidr)

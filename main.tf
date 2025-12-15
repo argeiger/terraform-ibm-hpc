@@ -43,6 +43,7 @@ module "landing_zone" {
   afm_instances                                 = var.afm_instances
   afm_cos_config                                = var.afm_cos_config
   filesystem_config                             = var.filesystem_config
+  enable_private_path_nlb                       = var.enable_private_path_nlb
   # hpcs_instance_name            = var.hpcs_instance_name
   # clusters                      = var.clusters
 }
@@ -79,7 +80,6 @@ module "deployer" {
   ext_storage_subnet_id              = var.storage_subnet_id
   ext_protocol_subnet_id             = var.protocol_subnet_id
   login_security_group_name          = var.login_security_group_name
-  enable_sec_interface_compute       = local.enable_sec_interface_compute
 }
 
 module "landing_zone_vsi" {
@@ -104,7 +104,6 @@ module "landing_zone_vsi" {
   storage_type                  = var.storage_type
   protocol_subnets              = local.protocol_subnets
   protocol_instances            = var.protocol_instances
-  nsd_details                   = var.nsd_details
   dns_domain_names              = var.dns_domain_names
   kms_encryption_enabled        = local.kms_encryption_enabled
   boot_volume_encryption_key    = var.boot_volume_encryption_key
@@ -122,6 +121,7 @@ module "landing_zone_vsi" {
   ibm_customer_number           = var.ibm_customer_number
   colocate_protocol_instances   = var.colocate_protocol_instances
   storage_security_group_id     = var.storage_security_group_id
+  mtu_value                     = var.mtu_value
   login_instance                = var.login_instance
   bastion_subnets               = local.login_subnets
   cluster_cidr                  = local.cluster_cidr
@@ -134,7 +134,9 @@ module "landing_zone_vsi" {
   client_security_group_name    = var.client_security_group_name
   gklm_security_group_name      = var.gklm_security_group_name
   ldap_security_group_name      = var.ldap_security_group_name
+  volume_storages               = var.volume_storages
   lsf_pay_per_use               = var.lsf_pay_per_use
+  protocol_instance_eth1_mtu    = var.protocol_instance_eth1_mtu
 }
 
 module "prepare_tf_input" {
@@ -238,7 +240,11 @@ module "prepare_tf_input" {
   bms_boot_drive_encryption                        = var.bms_boot_drive_encryption
   scale_afm_bucket_config_details                  = local.scale_afm_bucket_config_details
   scale_afm_cos_hmac_key_params                    = local.scale_afm_cos_hmac_key_params
+  volume_storages                                  = var.volume_storages
+  enable_private_path_nlb                          = var.enable_private_path_nlb
   lsf_pay_per_use                                  = var.lsf_pay_per_use
+  protocol_instance_eth1_mtu                       = var.protocol_instance_eth1_mtu
+  mtu_value                                        = var.mtu_value
   depends_on                                       = [module.deployer]
 }
 
@@ -319,7 +325,42 @@ module "protocol_reserved_ip" {
   protocol_domain         = var.dns_domain_names["protocol"]
   protocol_dns_service_id = local.dns_instance_id
   protocol_dns_zone_id    = local.protocol_dns_zone_id
+  enable_private_path_nlb = var.enable_private_path_nlb
   depends_on              = [module.dns]
+}
+
+module "private_path_nlb" {
+  count                              = var.scheduler == "Scale" && var.enable_deployer == false && var.enable_private_path_nlb == true ? 1 : 0
+  source                             = "./modules/private_path_nlb"
+  private_path_name                  = format("%s-pp", var.cluster_prefix)
+  nlb_name                           = format("%s-ppnlb", var.cluster_prefix)
+  resource_group_id                  = var.resource_group_ids["service_rg"]
+  subnet_id                          = local.client_subnet
+  private_path_service_endpoints     = ["${var.cluster_prefix}.${var.dns_domain_names["ppnlb"]}"]
+  nlb_backend_pools                  = local.nlb_backend_pools
+  private_path_default_access_policy = "permit"
+  private_path_zonal_affinity        = true
+  private_path_publish               = true
+  private_path_account_policies      = local.private_path_account_policies
+  tags                               = [local.scheduler_lowercase, var.cluster_prefix]
+  access_tags                        = []
+}
+
+module "vpe" {
+  count                = var.scheduler == "Scale" && var.enable_deployer == false && var.enable_private_path_nlb == true ? 1 : 0
+  source               = "./modules/vpe"
+  region               = local.region
+  resource_group_id    = var.resource_group_ids["service_rg"]
+  prefix               = var.cluster_prefix
+  vpc_name             = local.vpc_name
+  vpc_id               = local.vpc_id
+  subnet_zone_list     = local.client_subnets
+  security_group_ids   = length(local.client_security_group_id) > 0 ? local.client_security_group_id : [local.vpc_default_security_group]
+  cloud_services       = []
+  cloud_service_by_crn = local.cloud_service_by_crn
+  service_endpoints    = "private"
+  reserved_ips         = {}
+  depends_on           = [module.landing_zone_vsi, module.private_path_nlb]
 }
 
 module "client_dns_records" {
@@ -341,7 +382,7 @@ module "gklm_dns_records" {
 }
 
 resource "time_sleep" "wait_for_vsi_syncup" {
-  count           = var.enable_deployer == false && var.scheduler == "Scale" && var.storage_type != "persistent" && (can(regex("^ibm-redhat-8-10-minimal-amd64-.*$", (var.storage_instances[*]["image"])[0])) || local.enable_sec_interface_compute || local.enable_sec_interface_storage) ? 1 : 0
+  count           = var.enable_deployer == false && var.scheduler == "Scale" && var.storage_type != "baremetal" && (can(regex("^ibm-redhat-8-10-minimal-amd64-.*$", (var.storage_instances[*]["image"])[0])) || local.enable_sec_interface_compute || local.enable_sec_interface_storage) ? 1 : 0
   create_duration = local.enable_sec_interface_compute || local.enable_sec_interface_storage ? "180s" : "300s"
   depends_on      = [module.storage_dns_records, module.protocol_reserved_ip, module.compute_dns_records, module.landing_zone_vsi]
 }
@@ -373,7 +414,7 @@ module "write_compute_cluster_inventory" {
   resource_group_id           = var.resource_group_ids["service_rg"]
   zones                       = var.zones
   vpc_id                      = local.vpc_id
-  compute_subnets_cidr        = [var.vpc_cluster_private_subnets_cidr_blocks]
+  compute_subnets_cidr        = var.compute_subnet_id != null ? [data.ibm_is_subnet.existing_compute_subnets_cidr[0].ipv4_cidr_block] : [var.vpc_cluster_private_subnets_cidr_blocks]
   dynamic_compute_instances   = var.dynamic_compute_instances
   compute_security_group_id   = local.compute_security_group_id
   compute_ssh_keys_ids        = local.ssh_keys_ids
@@ -381,6 +422,7 @@ module "write_compute_cluster_inventory" {
   kms_encryption_enabled      = local.kms_encryption_enabled
   boot_volume_encryption_key  = var.boot_volume_encryption_key
   lsf_pay_per_use             = var.lsf_pay_per_use
+  mtu_value                   = var.mtu_value
   depends_on                  = [time_sleep.wait_for_vsi_syncup, module.landing_zone_vsi]
 }
 
@@ -453,9 +495,9 @@ module "write_storage_scale_cluster_inventory" {
   compute_cluster_instance_private_ips             = []
   compute_cluster_instance_private_dns_ip_map      = {}
   compute_cluster_instance_names                   = []
-  storage_cluster_instance_ids                     = var.storage_type == "persistent" ? concat(local.baremetal_cluster_instance_ids, local.strg_mgmtt_instance_ids, local.bm_tie_breaker_ids) : concat(local.storage_cluster_instance_ids, local.strg_mgmtt_instance_ids, local.tie_breaker_storage_instance_ids)
-  storage_cluster_instance_private_ips             = var.storage_type == "persistent" ? concat(local.baremetal_cluster_instance_private_ips, local.strg_mgmt_instance_private_ips, local.bm_tie_breaker_private_ips) : concat(local.storage_cluster_instance_private_ips, local.strg_mgmt_instance_private_ips, local.tie_breaker_storage_instance_private_ips)
-  storage_cluster_instance_names                   = var.storage_type == "persistent" ? concat(local.baremetal_cluster_instance_names, local.strg_mgmt_instance_names, local.bm_tie_breaker_names) : concat(local.storage_cluster_instance_names, local.strg_mgmt_instance_names, local.tie_breaker_storage_instance_names)
+  storage_cluster_instance_ids                     = var.storage_type == "baremetal" ? concat(local.baremetal_cluster_instance_ids, local.strg_mgmtt_instance_ids, local.bm_tie_breaker_ids) : concat(local.storage_cluster_instance_ids, local.strg_mgmtt_instance_ids, local.tie_breaker_storage_instance_ids)
+  storage_cluster_instance_private_ips             = var.storage_type == "baremetal" ? concat(local.baremetal_cluster_instance_private_ips, local.strg_mgmt_instance_private_ips, local.bm_tie_breaker_private_ips) : concat(local.storage_cluster_instance_private_ips, local.strg_mgmt_instance_private_ips, local.tie_breaker_storage_instance_private_ips)
+  storage_cluster_instance_names                   = var.storage_type == "baremetal" ? concat(local.baremetal_cluster_instance_names, local.strg_mgmt_instance_names, local.bm_tie_breaker_names) : concat(local.storage_cluster_instance_names, local.strg_mgmt_instance_names, local.tie_breaker_storage_instance_names)
   storage_cluster_with_data_volume_mapping         = local.storage_ips_with_vol_mapping[0]
   storage_cluster_instance_private_dns_ip_map      = {}
   storage_cluster_desc_instance_private_ips        = local.strg_tie_breaker_private_ips
@@ -481,6 +523,8 @@ module "write_storage_scale_cluster_inventory" {
   afm_cos_bucket_details                           = var.scale_afm_cos_hmac_key_params
   afm_cluster_instance_names                       = local.afm_names_final
   filesystem_mountpoint                            = local.encryption_filesystem_mountpoint
+  boot_volume_disk_grow                            = local.boot_volume_disk_grow
+  block_volume_disk_grow                           = local.block_volume_disk_grow
   depends_on                                       = [time_sleep.wait_for_vsi_syncup, module.landing_zone_vsi]
 }
 
@@ -517,7 +561,7 @@ module "write_client_scale_cluster_inventory" {
   scale_remote_cluster_clustername                 = jsonencode("")
   protocol_cluster_instance_names                  = []
   client_cluster_instance_names                    = local.scale_ces_enabled == true ? local.client_instance_names : []
-  protocol_cluster_reserved_names                  = local.scale_ces_enabled == true ? format("%s-ces.%s", var.cluster_prefix, var.dns_domain_names["protocol"]) : ""
+  protocol_cluster_reserved_names                  = local.scale_ces_enabled == true ? var.enable_private_path_nlb ? "${var.cluster_prefix}.${var.dns_domain_names["ppnlb"]}" : format("%s-ces.%s", var.cluster_prefix, var.dns_domain_names["protocol"]) : ""
   smb                                              = false
   nfs                                              = false
   object                                           = false
@@ -565,36 +609,40 @@ module "ldap_configuration" {
   depends_on                 = [module.validate_ldap_server_connection, module.landing_zone_vsi]
 }
 
-module "host_resolution_add" {
-  count                     = var.scheduler == "Scale" && var.enable_deployer == false ? 1 : 0
-  source                    = "./modules/host_resolution_add"
-  scheduler                 = var.scheduler
-  clone_path                = var.scale_ansible_repo_clone_path
-  storage_hosts             = local.storage_host_entry
-  storage_mgmnt_hosts       = local.storage_mgmnt_host_entry
-  storage_tb_hosts          = local.storage_tb_host_entry
-  compute_hosts             = local.compute_host_entry
-  compute_mgmnt_hosts       = local.compute_mgmnt_host_entry
-  client_hosts              = local.client_host_entry
-  protocol_hosts            = local.protocol_host_entry
-  gklm_hosts                = local.gklm_host_entry
-  afm_hosts                 = local.afm_host_entry
-  storage_bms_hosts         = local.storage_bms_host_entry
-  storage_tb_bms_hosts      = local.storage_tb_bms_host_entry
-  protocol_bms_hosts        = local.protocol_bms_host_entry
-  afm_bms_hosts             = local.afm_bms_host_entry
-  domain_names              = var.dns_domain_names
-  storage_type              = var.storage_type
-  storage_interface         = local.bms_interfaces[0]
-  protocol_interface        = local.bms_interfaces[1]
-  enable_protocol           = local.enable_protocol && var.colocate_protocol_instances ? true : false
-  vpc_region                = local.region
-  resource_group            = var.resource_group_ids["service_rg"]
-  protocol_subnets          = local.enable_protocol ? (length(local.protocol_subnets) > 0 ? local.protocol_subnets[0].id : "") : ""
-  bms_boot_drive_encryption = var.bms_boot_drive_encryption
-  ibmcloud_api_key          = var.ibmcloud_api_key
-  scale_encryption_type     = var.scale_encryption_type
-  depends_on                = [module.landing_zone_vsi]
+module "pre_cluster_setup" {
+  count                        = var.scheduler == "Scale" && var.enable_deployer == false ? 1 : 0
+  source                       = "./modules/pre_cluster_setup"
+  scheduler                    = var.scheduler
+  clone_path                   = var.scale_ansible_repo_clone_path
+  storage_hosts                = local.storage_host_entry
+  storage_mgmnt_hosts          = local.storage_mgmnt_host_entry
+  storage_tb_hosts             = local.storage_tb_host_entry
+  compute_hosts                = local.compute_host_entry
+  compute_mgmnt_hosts          = local.compute_mgmnt_host_entry
+  client_hosts                 = local.client_host_entry
+  protocol_hosts               = local.protocol_host_entry
+  gklm_hosts                   = local.gklm_host_entry
+  afm_hosts                    = local.afm_host_entry
+  storage_bms_hosts            = local.storage_bms_host_entry
+  storage_tb_bms_hosts         = local.storage_tb_bms_host_entry
+  protocol_bms_hosts           = local.protocol_bms_host_entry
+  afm_bms_hosts                = local.afm_bms_host_entry
+  domain_names                 = var.dns_domain_names
+  storage_type                 = var.storage_type
+  storage_interface            = local.bms_interfaces[0]
+  protocol_interface           = local.bms_interfaces[1]
+  enable_sec_interface_compute = local.enable_sec_interface_compute
+  enable_protocol              = local.enable_protocol && var.colocate_protocol_instances ? true : false
+  vpc_region                   = local.region
+  resource_group               = var.resource_group_ids["service_rg"]
+  protocol_subnets             = local.enable_protocol ? (length(local.protocol_subnets) > 0 ? local.protocol_subnets[0].id : "") : ""
+  bms_boot_drive_encryption    = var.bms_boot_drive_encryption
+  ibmcloud_api_key             = var.ibmcloud_api_key
+  scale_encryption_type        = var.scale_encryption_type
+  colocate_protocol_instances  = var.colocate_protocol_instances
+  enable_private_path_nlb      = var.enable_private_path_nlb
+  protocol_instance_eth1_mtu   = var.protocol_instance_eth1_mtu
+  depends_on                   = [module.landing_zone_vsi]
 }
 
 module "compute_cluster_configuration" {
@@ -632,7 +680,7 @@ module "compute_cluster_configuration" {
   ldap_server                     = var.enable_ldap ? (var.ldap_server != "null" ? var.ldap_server : local.ldap_instance_private_ips[0]) : null
   ldap_admin_password             = local.ldap_admin_password == "" ? jsonencode(null) : local.ldap_admin_password
   enable_key_protect              = var.scale_encryption_type == "key_protect" ? "True" : "False"
-  depends_on                      = [module.write_compute_scale_cluster_inventory, module.key_protect_scale, module.ldap_configuration, module.host_resolution_add]
+  depends_on                      = [module.write_compute_scale_cluster_inventory, module.key_protect_scale, module.ldap_configuration, module.pre_cluster_setup]
 }
 
 module "storage_cluster_configuration" {
@@ -653,7 +701,6 @@ module "storage_cluster_configuration" {
   storage_cluster_gui_password    = var.storage_gui_password
   colocate_protocol_instances     = var.colocate_protocol_instances
   is_colocate_protocol_subset     = local.is_colocate_protocol_subset
-  bms_boot_drive_encryption       = var.bms_boot_drive_encryption
   mgmt_memory                     = local.management_memory
   mgmt_vcpus_count                = local.management_vcpus_count
   mgmt_bandwidth                  = local.management_bandwidth
@@ -696,7 +743,10 @@ module "storage_cluster_configuration" {
   ldap_server_cert                = local.ldap_server_cert
   enable_key_protect              = var.scale_encryption_type == "key_protect" ? "True" : "False"
   storage_type                    = var.storage_type
-  depends_on                      = [module.write_storage_scale_cluster_inventory, module.key_protect_scale, module.ldap_configuration, module.host_resolution_add]
+  boot_volume_disk_grow           = local.boot_volume_disk_grow
+  block_volume_disk_grow          = local.block_volume_disk_grow
+  bms_boot_drive_encryption       = var.bms_boot_drive_encryption
+  depends_on                      = [module.write_storage_scale_cluster_inventory, module.key_protect_scale, module.ldap_configuration, module.pre_cluster_setup]
 }
 
 module "client_configuration" {
@@ -717,7 +767,7 @@ module "client_configuration" {
   ldap_basedns                    = var.ldap_basedns
   ldap_server                     = var.enable_ldap ? (var.ldap_server != "null" ? var.ldap_server : local.ldap_instance_private_ips[0]) : null
   ldap_admin_password             = local.ldap_admin_password == "" ? jsonencode(null) : local.ldap_admin_password
-  depends_on                      = [module.storage_cluster_configuration, module.ldap_configuration, module.host_resolution_add]
+  depends_on                      = [module.storage_cluster_configuration, module.ldap_configuration, module.pre_cluster_setup]
 }
 
 module "remote_mount_configuration" {
@@ -930,11 +980,13 @@ module "storage_inventory_hosts" {
   inventory_path = local.storage_hosts_inventory_path
 }
 
-module "host_resolution_remove" {
+module "post_cluster_setup" {
   count                = var.scheduler == "Scale" && var.enable_deployer == false ? 1 : 0
   turn_on              = var.create_separate_namespaces
-  source               = "./modules/host_resolution_remove"
+  source               = "./modules/post_cluster_setup"
   create_scale_cluster = var.create_scale_cluster
+  storage_turn_on      = (var.create_separate_namespaces == true && local.storage_instance_count > 0) ? true : false
+  compute_turn_on      = (var.create_separate_namespaces == true && local.static_compute_instance_count > 0) ? true : false
   clone_path           = var.scale_ansible_repo_clone_path
   depends_on           = [module.compute_cluster_configuration, module.storage_cluster_configuration, module.remote_mount_configuration, module.encryption_configuration, module.invoke_compute_network_playbook, module.invoke_storage_network_playbook]
 }

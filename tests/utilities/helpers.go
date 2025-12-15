@@ -3,10 +3,12 @@ package tests
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
+	"log"
+	"math/big"
 
 	"os"
 	"os/exec"
@@ -256,25 +258,6 @@ func GetOrDefault(envVar, defaultValue string) string {
 		return envVar
 	}
 	return defaultValue
-}
-
-// GenerateRandomString generates a random string of length 4 using lowercase characters
-func GenerateRandomString() string {
-	// Define the character set containing lowercase letters
-	charset := "abcdefghijklmnopqrstuvwxyz"
-
-	b := make([]byte, 4)
-
-	// Loop through each index of the byte slice
-	for i := range b {
-		// Generate a random index within the length of the character set
-		randomIndex := rand.Intn(len(charset))
-
-		b[i] = charset[randomIndex]
-	}
-
-	// Convert the byte slice to a string and return it
-	return string(b)
 }
 
 // GetSecretsManagerKey retrieves a secret from IBM Secrets Manager.
@@ -771,21 +754,30 @@ func GetBoolVar(vars map[string]interface{}, key string) (bool, error) {
 	return boolVal, nil
 }
 
-// GeneratePassword generates a random string of length 8 using lowercase characters
-func GeneratePassword() string {
-	// Define the character set containing lowercase letters
-	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
-
-	b := make([]byte, 8)
-
-	// Loop through each index of the byte slice
+// GenerateRandomString generates a random 4-letter lowercase string
+func GenerateRandomString() string {
+	const charset = "abcdefghijklmnopqrstuvwxyz"
+	b := make([]byte, 4)
 	for i := range b {
-		// Generate a random index within the length of the character set
-		randomIndex := rand.Intn(len(charset))
-
-		b[i] = charset[randomIndex]
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			log.Fatalf("Failed to generate random index: %v", err)
+		}
+		b[i] = charset[idx.Int64()]
 	}
+	return string(b)
+}
 
-	// Convert the byte slice to a string and return it
+// GeneratePassword generates a random 8-character password
+func GeneratePassword() string {
+	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
+	b := make([]byte, 8)
+	for i := range b {
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			log.Fatalf("Failed to generate random index: %v", err)
+		}
+		b[i] = charset[idx.Int64()]
+	}
 	return string(b) + "1*"
 }

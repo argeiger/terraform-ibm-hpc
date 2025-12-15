@@ -89,12 +89,3 @@ locals {
   public_gateways_list = var.ext_vpc_name != null ? data.ibm_is_public_gateways.public_gateways[0].public_gateways : []
   zone_1_pgw_ids       = var.ext_vpc_name != null ? [for gateway in local.public_gateways_list : gateway.id if gateway.vpc == var.vpc_id && gateway.zone == var.zones[0]] : []
 }
-
-locals {
-  storage_secondary_security_group = [
-    for i, subnet in var.compute_subnets : {
-      security_group_id = one(module.bastion_sg[*].security_group_id)
-      interface_name    = subnet.name
-    }
-  ]
-}

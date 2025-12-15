@@ -52,31 +52,31 @@ locals {
     },
   }
   storage_image_region_map = {
-    "hpcc-scale5232-rhel810-v1" = {
-      "eu-es"    = "r050-7f28959f-74a4-4ad7-be30-8107da85406f"
-      "eu-gb"    = "r018-5286d07b-527f-49a2-b0a7-2c88278349e8"
-      "eu-de"    = "r010-1e558d55-bc2e-4e96-9164-b4b1139ba06b"
-      "us-east"  = "r014-8befe151-c36d-4056-9955-3480210adf98"
-      "us-south" = "r006-7ab41080-5af0-47e5-ad44-abc18589197a"
-      "jp-tok"   = "r022-d60e9e5f-264d-4e37-9fc0-9ad6270a054e"
-      "jp-osa"   = "r034-eac88b73-0978-4340-9188-e28e99aeae2a"
-      "au-syd"   = "r026-221f1bb0-1ba3-40c3-a83f-59334a2fda4b"
-      "br-sao"   = "r042-e3d377a0-69f6-4079-9cbe-021021fb4a84"
-      "ca-tor"   = "r038-73809daf-d414-4319-bc46-1bdd26a8e85d"
+    "hpcc-scale6000-rhel810-v1" = {
+      "eu-es"    = "r050-d586cb85-f73c-494e-b996-99dd20e6b627"
+      "eu-gb"    = "r018-ba9933df-2879-4514-afb5-30071ace35ac"
+      "eu-de"    = "r010-3a429828-d408-4c66-bda0-6dae287a2998"
+      "us-east"  = "r014-0286af84-0209-4074-ac61-7d9aaf8d49d3"
+      "us-south" = "r006-d003469e-87a5-496c-9b47-58bf644d76b3"
+      "jp-tok"   = "r022-1bf416ab-0797-438e-917b-9eed96dbde95"
+      "jp-osa"   = "r034-9eba237b-2a97-4ced-948e-862e65ab3f84"
+      "au-syd"   = "r026-85e309c1-d9cf-47c9-8e16-55797db07853"
+      "br-sao"   = "r042-7b4ee64c-6bcf-40b2-9168-d5163851816e"
+      "ca-tor"   = "r038-c335cf82-83d4-4d7f-a1ba-fab40770a444"
     }
   }
   evaluation_image_region_map = {
-    "hpcc-scale5232-dev-rhel810" = {
-      "eu-es"    = "r050-eb14661e-8290-4c03-a198-3e65a1b17a6b"
-      "eu-gb"    = "r018-46ec71d2-2137-48c1-b348-a2ff0a671d91"
-      "eu-de"    = "r010-cf5e0560-cbbf-43a6-9ba7-39fb4d4e82ff"
-      "us-east"  = "r014-27ceeecc-c5bc-461e-a687-11e5b843274d"
-      "us-south" = "r006-12668685-f580-4cc8-86c5-335f1a979278"
-      "jp-tok"   = "r022-bfe30f3f-c68f-4f61-ba90-7fbaa1a29665"
-      "jp-osa"   = "r034-320617e2-b565-4843-bd8d-9f4bd2dd4641"
-      "au-syd"   = "r026-ad179ec6-37a0-4d0c-9816-d065768414cf"
-      "br-sao"   = "r042-ed759187-cd74-4d13-b475-bd0ed443197b"
-      "ca-tor"   = "r038-90ca620e-5bf9-494e-a6ba-7e5ee663a54b"
+    "hpcc-scale6000-dev-rhel810" = {
+      "eu-es"    = "r050-6eac2073-72ea-451d-91a7-ac1b80c868ac"
+      "eu-gb"    = "r018-6f99b7b3-6455-4d83-a299-c9ebf9e88bf4"
+      "eu-de"    = "r010-ee6f89ed-6a71-4be3-9f6d-5303ba038db5"
+      "us-east"  = "r014-18b03c46-109e-4304-82c9-3351ddb86b3a"
+      "us-south" = "r006-45df00de-35c8-42e8-89b9-9045a4e5e13b"
+      "jp-tok"   = "r022-e53756df-80a5-4f89-a555-c4a6c3772379"
+      "jp-osa"   = "r034-67fdb6c7-28bc-4803-9914-7cd9b455f7bb"
+      "au-syd"   = "r026-eb084f68-75ca-4c2a-8882-8aa8c0ee4441"
+      "br-sao"   = "r042-6bf1c2d4-a5ca-40bc-9cc0-5b7b515ecb3c"
+      "ca-tor"   = "r038-1bb917ea-b4cf-44af-b8bd-1bde3a808d81"
     }
   }
   encryption_image_region_map = {

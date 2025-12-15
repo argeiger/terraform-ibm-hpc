@@ -91,6 +91,9 @@ locals {
     protocol_subnet_id                   = var.protocol_subnet_id
     client_subnet_id                     = var.client_subnet_id
     scale_management_vsi_profile         = var.scale_management_vsi_profile
+    volume_storages                      = var.volume_storages
+    enable_private_path_nlb              = var.enable_private_path_nlb
+    protocol_instance_eth1_mtu           = var.protocol_instance_eth1_mtu
   }
 }
 
@@ -171,5 +174,8 @@ locals {
     protocol_subnet_id                   = lookup(local.override[local.override_type], "protocol_subnet_id", local.config.protocol_subnet_id)
     client_subnet_id                     = lookup(local.override[local.override_type], "client_subnet_id", local.config.client_subnet_id)
     scale_management_vsi_profile         = lookup(local.override[local.override_type], "scale_management_vsi_profile", local.config.scale_management_vsi_profile)
+    volume_storages                      = lookup(local.override[local.override_type], "volume_storages", local.config.volume_storages)
+    enable_private_path_nlb              = lookup(local.override[local.override_type], "enable_private_path_nlb", local.config.enable_private_path_nlb)
+    protocol_instance_eth1_mtu           = lookup(local.override[local.override_type], "protocol_instance_eth1_mtu", local.config.protocol_instance_eth1_mtu)
   }
 }

@@ -52,4 +52,5 @@ locals {
   ldap_security_group_name           = jsonencode(var.ldap_security_group_name == null ? null : var.ldap_security_group_name)
   scale_afm_bucket_config_details    = jsonencode(var.scale_afm_bucket_config_details)
   scale_afm_cos_hmac_key_params      = jsonencode(var.scale_afm_cos_hmac_key_params)
+  volume_storages                    = jsonencode(var.volume_storages)
 }

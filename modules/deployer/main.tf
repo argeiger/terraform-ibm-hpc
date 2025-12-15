@@ -59,16 +59,13 @@ module "bastion_vsi" {
   enable_floating_ip            = true
   security_group_ids            = var.login_security_group_name == null ? module.bastion_sg[*].security_group_id : local.login_security_group_name_id
   ssh_key_ids                   = local.bastion_ssh_keys
-  subnets                       = var.scheduler == "Scale" && var.enable_sec_interface_compute ? var.storage_subnets : local.bastion_subnets
+  subnets                       = local.bastion_subnets
   tags                          = local.tags
   user_data                     = data.template_file.bastion_user_data.rendered
   vpc_id                        = var.vpc_id
   kms_encryption_enabled        = var.kms_encryption_enabled
   skip_iam_authorization_policy = true
   boot_volume_encryption_key    = var.boot_volume_encryption_key
-  secondary_security_groups     = var.scheduler == "Scale" && var.enable_sec_interface_compute ? local.storage_secondary_security_group : []
-  secondary_subnets             = var.scheduler == "Scale" && var.enable_sec_interface_compute ? var.compute_subnets : []
-  manage_reserved_ips           = var.scheduler == "Scale" && var.enable_sec_interface_compute ? true : false
 }
 
 module "deployer_vsi" {
@@ -85,7 +82,7 @@ module "deployer_vsi" {
   enable_floating_ip            = false
   security_group_ids            = var.login_security_group_name == null ? module.bastion_sg[*].security_group_id : local.login_security_group_name_id
   ssh_key_ids                   = local.bastion_ssh_keys
-  subnets                       = var.scheduler == "Scale" && var.enable_sec_interface_compute ? var.storage_subnets : local.bastion_subnets
+  subnets                       = local.bastion_subnets
   tags                          = local.tags
   user_data                     = data.template_file.deployer_user_data.rendered
   vpc_id                        = var.vpc_id

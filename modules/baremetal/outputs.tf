@@ -10,6 +10,7 @@ output "list" {
         bms_primary_vni_id      = try(server_details.bms_primary_vni_id, null)
         bms_server_secondary_ip = try(server_details.bms_server_secondary_ip, null)
         bms_secondary_vni_id    = try(server_details.bms_secondary_vni_id, null)
+        primary_reserved_ip     = try(server_details.baremetal_server_primary_reserved_ip, null)
       }
     ]
   ])

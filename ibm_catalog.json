@@ -45,6 +45,7 @@
         {
           "label": "Cluster with LSF v10.1.0.15",
           "name": "Cluster-with-LSF",
+          "short_description": "Deploy your high performance computing (HPC) cluster with IBM scheduling software for compute intensive workloads.",
           "install_type": "fullstack",
           "working_directory": "solutions/lsf",
           "terraform_version": "1.10.5",
@@ -422,7 +423,7 @@
             {
               "key": "bastion_instance",
               "type": "object",
-              "default_value": "{\n  \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-3\",\n  \"profile\": \"cx2-4x8\"\n}",
+              "default_value": "{\n  \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-8\",\n  \"profile\": \"cx2-4x8\"\n}",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -533,13 +534,18 @@
               "default_value": "[\n  {\n    \"mount_path\": \"/mnt/vpcstorage/tools\",\n    \"size\": 100,\n    \"iops\": 2000\n  },\n  {\n    \"mount_path\": \"/mnt/vpcstorage/data\",\n    \"size\": 100,\n    \"iops\": 6000\n  },\n  {\n    \"mount_path\": \"/mnt/scale/tools\",\n    \"nfs_share\": \"\"\n  }\n]\n",
               "required": false,
               "custom_config": {
-                "type": "json_editor",
+                "type": "code_editor",
                 "grouping": "deployment",
                 "original_grouping": "deployment",
                 "config_constraints": {
-                  "type": "mixed"
+                  "supportedLanguages": [
+                    "hcl"
+                  ]
                 }
               }
+            },
+            {
+              "key": "mtu_value"
             },
             {
               "key": "storage_security_group_id"
@@ -598,7 +604,7 @@
             {
               "key": "ldap_instance",
               "type": "array",
-              "default_value": "[\n  {\n    \"profile\": \"cx2-2x4\",\n    \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-5\"\n  }\n]",
+              "default_value": "[\n  {\n    \"profile\": \"cx2-2x4\",\n    \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-8\"\n  }\n]",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -818,6 +824,7 @@
         {
           "label": "IBM Storage Scale",
           "name": "Cluster-with-Scale",
+          "short_description": "Deploy your HPC cluster with IBM Storage Scale for high performance, highly available, clustered file system.",
           "install_type": "fullstack",
           "working_directory": "solutions/scale",
           "terraform_version": "1.10.5",
@@ -1078,15 +1085,15 @@
             },
             {
               "key": "storage_type",
-              "default_value": "scratch",
+              "default_value": "vsi",
               "options": [
                 {
-                  "displayname": "scratch",
-                  "value": "scratch"
+                  "displayname": "vsi",
+                  "value": "vsi"
                 },
                 {
-                  "displayname": "persistent",
-                  "value": "persistent"
+                  "displayname": "baremetal",
+                  "value": "baremetal"
                 },
                 {
                   "displayname": "evaluation",
@@ -1175,7 +1182,7 @@
             {
               "key": "bastion_instance",
               "type": "object",
-              "default_value": "{\n  \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-5\",\n  \"profile\": \"cx2-4x8\"\n}",
+              "default_value": "{\n  \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-8\",\n  \"profile\": \"cx2-4x8\"\n}",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -1189,7 +1196,7 @@
             {
               "key": "deployer_instance",
               "type": "object",
-              "default_value": "{\n  \"image\": \"hpcc-scale-deployer-v1\",\n  \"profile\": \"bx2-8x32\"\n}",
+              "default_value": "{\n  \"image\": \"hpcc-scale-deployer-v2\",\n  \"profile\": \"bx2-8x32\"\n}",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -1203,7 +1210,7 @@
             {
               "key": "client_instances",
               "type": "object",
-              "default_value": "[\n  {\n    \"count\": 2,\n    \"profile\": \"cx2-2x4\",\n    \"image\": \"ibm-redhat-8-10-minimal-amd64-6\"\n  }\n]",
+              "default_value": "[\n  {\n    \"count\": 2,\n    \"profile\": \"cx2-2x4\",\n    \"image\": \"ibm-redhat-8-10-minimal-amd64-10\"\n  }\n]",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -1223,7 +1230,7 @@
             {
               "key": "compute_instances",
               "type": "object",
-              "default_value": "[\n  {\n    \"count\": 0,\n    \"profile\": \"bx2-2x8\",\n  \"filesystem\": \"/gpfs/fs1\",\n  \"image\": \"hpcc-scale5232-rhel810-v1\"\n  }\n]",
+              "default_value": "[\n  {\n    \"count\": 0,\n    \"profile\": \"bx2-2x8\",\n  \"filesystem\": \"/gpfs/fs1\",\n  \"image\": \"hpcc-scale6000-rhel810-v1\"\n  }\n]",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -1237,7 +1244,21 @@
             {
               "key": "storage_instances",
               "type": "object",
-              "default_value": "[\n  {\n    \"count\": 2,\n    \"profile\": \"bx2d-32x128\",\n  \"filesystem\": \"/gpfs/fs1\",\n  \"image\": \"hpcc-scale5232-rhel810-v1\"\n  }\n]",
+              "default_value": "[\n  {\n    \"count\": 2,\n    \"profile\": \"bx2-32x128\",\n  \"filesystem\": \"/gpfs/fs1\",\n  \"image\": \"hpcc-scale6000-rhel810-v1\"\n  }\n]",
+              "required": false,
+              "custom_config": {
+                "type": "json_editor",
+                "grouping": "deployment",
+                "original_grouping": "deployment",
+                "config_constraints": {
+                  "type": "mixed"
+                }
+              }
+            },
+            {
+              "key": "volume_storages",
+              "type": "object",
+              "default_value": "[\n  {\n    \"boot_volume_profile\": \"sdp\",\n    \"boot_volume_size\": 100,\n    \"boot_volume_iops\": 3000,\n \"boot_volume_disk_grow\": false,\n \"block_volume_capacity\": 500,\n \"block_volume_iops\": 20000,\n \"block_volume_disk_grow\": false\n }\n]",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -1251,7 +1272,7 @@
             {
               "key": "storage_baremetal_server",
               "type": "object",
-              "default_value": "[\n  {\n    \"count\": 0,\n    \"profile\": \"cx2d-metal-96x192\",\n  \"filesystem\": \"/gpfs/fs1\",\n  \"image\": \"hpcc-scale5232-rhel810-v1\"\n  }\n]",
+              "default_value": "[\n  {\n    \"count\": 0,\n    \"profile\": \"cx2d-metal-96x192\",\n  \"filesystem\": \"/gpfs/fs1\",\n  \"image\": \"hpcc-scale6000-rhel810-v1\"\n  }\n]",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -1288,11 +1309,13 @@
               "default_value": "[\n  {\n    \"afm_fileset\": \"afm_fileset\",\n    \"mode\": \"iw\",\n    \"cos_instance\": \"\",\n \"bucket_name\": \"\",\n \"bucket_region\": \"us-south\",\n \"cos_service_cred_key\": \"\",\n \"bucket_storage_class\": \"smart\",\n \"bucket_type\": \"region_location\"\n  }\n]",
               "required": false,
               "custom_config": {
-                "type": "json_editor",
+                "type": "code_editor",
                 "grouping": "deployment",
                 "original_grouping": "deployment",
                 "config_constraints": {
-                  "type": "mixed"
+                  "supportedLanguages": [
+                    "hcl"
+                  ]
                 }
               }
             },
@@ -1312,6 +1335,12 @@
             },
             {
               "key": "colocate_protocol_instances"
+            },
+            {
+              "key": "enable_private_path_nlb"
+            },
+            {
+              "key": "protocol_instance_eth1_mtu"
             },
             {
               "key": "scale_encryption_enabled"
@@ -1360,11 +1389,13 @@
               "default_value": "[\n  {\n    \"filesystem\": \"/gpfs/fs1\",\n  \"block_size\": \"4M\",\n \"default_data_replica\": 2,\n \"default_metadata_replica\": 2,\n \"max_data_replica\": 3,\n \"max_metadata_replica\": 3 }\n]",
               "required": false,
               "custom_config": {
-                "type": "json_editor",
+                "type": "code_editor",
                 "grouping": "deployment",
                 "original_grouping": "deployment",
                 "config_constraints": {
-                  "type": "mixed"
+                  "supportedLanguages": [
+                    "hcl"
+                  ]
                 }
               }
             },
@@ -1374,11 +1405,13 @@
               "default_value": "[\n  {\n    \"client_mount_path\": \"/mnt/scale/tools\",\n    \"quota\": 0\n  },\n  {\n    \"client_mount_path\": \"/mnt/scale/data\",\n    \"quota\": 0\n  }\n]",
               "required": false,
               "custom_config": {
-                "type": "json_editor",
+                "type": "code_editor",
                 "grouping": "deployment",
                 "original_grouping": "deployment",
                 "config_constraints": {
-                  "type": "mixed"
+                  "supportedLanguages": [
+                    "hcl"
+                  ]
                 }
               }
             },
@@ -1409,7 +1442,7 @@
             {
               "key": "ldap_instance",
               "type": "array",
-              "default_value": "[\n  {\n    \"profile\": \"cx2-2x4\",\n    \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-5\"\n  }\n]",
+              "default_value": "[\n  {\n    \"profile\": \"cx2-2x4\",\n    \"image\": \"ibm-ubuntu-22-04-5-minimal-amd64-8\"\n  }\n]",
               "required": false,
               "custom_config": {
                 "type": "json_editor",
@@ -1506,7 +1539,8 @@
           "iam_permissions": [
             {
               "role_crns": [
-                "crn:v1:bluemix:public:iam::::serviceRole:Manager"
+                "crn:v1:bluemix:public:iam::::serviceRole:Writer",
+                "crn:v1:bluemix:public:iam::::role:ConfigReader"
               ],
               "service_name": "cloud-object-storage"
             },
@@ -1553,6 +1587,12 @@
               "service_name": "apprapp",
               "role_crns": [
                 "crn:v1:bluemix:public:iam::::serviceRole:Manager",
+                "crn:v1:bluemix:public:iam::::role:Administrator"
+              ]
+            },
+            {
+              "service_name": "All Account Management services",
+              "role_crns": [
                 "crn:v1:bluemix:public:iam::::role:Administrator"
               ]
             },
@@ -1604,7 +1644,7 @@
               {
                 "diagram": {
                   "caption": "IBM Storage Scale",
-                  "url": "https://raw.githubusercontent.com/terraform-ibm-modules/terraform-ibm-hpc/refs/heads/main/Scale-DA-Architecture.drawio.svg",
+                  "url": "https://raw.githubusercontent.com/terraform-ibm-modules/terraform-ibm-hpc/refs/heads/main/DA-Scale-PPNLB.drawio.svg",
                   "type": "image/svg+xml"
                 },
                 "description": "This deployable architecture provisions a VPC on IBM Cloud to run a clustered file system within a single availability zone. A Bastion node is deployed in a dedicated subnet and security group to enable secure access to the storage environment. The IBM Spectrum Scale (GPFS) storage nodes and compute nodes are hosted in a separate subnet and security group\n. Each GPFS storage node operates as part of the Spectrum Scale cluster, contributing to the system’s high-performance, distributed storage by adding capacity and enabling application access through the compute nodes. The NFS server, running on a protocol node, interacts with the underlying distributed file system to serve client requests. By separating storage management from protocol services, the NFS storage node acts as an intelligent gateway, translating NFS client requests into operations on the highly scalable and resilient Spectrum Scale backend file system."

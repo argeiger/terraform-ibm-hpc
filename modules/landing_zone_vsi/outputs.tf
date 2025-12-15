@@ -123,14 +123,38 @@ output "storage_cluster_tie_breaker_vsi_data" {
 
 output "instance_ips_with_vol_mapping" {
   description = "Storage instance ips with vol mapping"
-  value = try({ for instance_details in flatten([for name_details in(flatten(module.storage_vsi[*]["list"])[*]["name"]) : name_details]) : instance_details =>
-  data.ibm_is_instance_profile.storage[0].disks[0].quantity[0].value == 1 ? ["/dev/vdb"] : ["/dev/vdb", "/dev/vdc"] }, {})
+  value = {
+    for instance in flatten([for s in module.storage_vsi : s.list]) :
+    instance.name => (
+      length(try(data.ibm_is_instance_profile.storage[0].disks, [])) > 0 ?
+      (
+        try(data.ibm_is_instance_profile.storage[0].disks[0].quantity, 0) == 1 ?
+        ["/dev/vdb"] :
+        ["/dev/vdb", "/dev/vdc"]
+      ) :
+      (
+        ["/dev/vdd"]
+      )
+    )
+  }
 }
 
 output "instance_ips_with_vol_mapping_tie_breaker" {
   description = "Tie breaker instance ips with vol mapping"
-  value = try({ for instance_details in flatten([for name_details in(flatten(module.storage_cluster_tie_breaker_vsi[*]["list"])[*]["name"]) : name_details]) : instance_details =>
-  data.ibm_is_instance_profile.storage_tie_instance[0].disks[0].quantity[0].value == 1 ? ["/dev/vdb"] : ["/dev/vdb", "/dev/vdc"] }, {})
+  value = {
+    for instance in flatten([for s in module.storage_cluster_tie_breaker_vsi : s.list]) :
+    instance.name => (
+      length(try(data.ibm_is_instance_profile.storage_tie_instance[0].disks, [])) > 0 ?
+      (
+        try(data.ibm_is_instance_profile.storage_tie_instance[0].disks[0].quantity, 0) == 1 ?
+        ["/dev/vdb"] :
+        ["/dev/vdb", "/dev/vdc"]
+      ) :
+      (
+        ["/dev/vdd"]
+      )
+    )
+  }
 }
 
 output "storage_private_key_content" {
@@ -143,4 +167,9 @@ output "storage_public_key_content" {
   description = "Storage public key content"
   value       = try(module.storage_key[0].public_key_content, "")
   sensitive   = true
+}
+
+output "client_sg_id" {
+  description = "Client SG id"
+  value       = module.client_sg[*].security_group_id
 }

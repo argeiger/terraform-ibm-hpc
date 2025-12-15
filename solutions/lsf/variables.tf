@@ -176,7 +176,7 @@ variable "bastion_instance" {
     profile = string
   })
   default = {
-    image   = "ibm-ubuntu-22-04-5-minimal-amd64-3"
+    image   = "ibm-ubuntu-22-04-5-minimal-amd64-8"
     profile = "cx2-4x8"
   }
   description = "Configuration for the bastion node, including the image and instance profile. Only Ubuntu 22.04 stock images are supported."
@@ -423,6 +423,12 @@ variable "custom_file_shares" {
   }
 }
 
+variable "mtu_value" {
+  type        = number
+  default     = 9000
+  description = "Default MTU is 9000. For deployments using Spectrum Scale with LSF and PPNLB enabled, configure the MTU at 8500 or lower to ensure compatibility."
+}
+
 ##############################################################################
 # DNS Variables
 ##############################################################################
@@ -596,7 +602,7 @@ variable "ldap_instance" {
   )
   default = [{
     profile = "cx2-2x4"
-    image   = "ibm-ubuntu-22-04-5-minimal-amd64-3"
+    image   = "ibm-ubuntu-22-04-5-minimal-amd64-8"
   }]
   description = "Specify the compute instance profile and image to be used for deploying LDAP instances. Only Debian-based operating systems, such as Ubuntu, are supported for LDAP functionality."
   validation {

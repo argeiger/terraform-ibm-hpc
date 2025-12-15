@@ -103,7 +103,7 @@ variable "bastion_instance" {
     profile = string
   })
   default = {
-    image   = "ibm-ubuntu-22-04-5-minimal-amd64-3"
+    image   = "ibm-ubuntu-22-04-5-minimal-amd64-8"
     profile = "cx2-4x8"
   }
   description = "Configuration for the Bastion node, including the image and instance profile. Only Ubuntu stock images are supported."
@@ -244,10 +244,4 @@ variable "login_security_group_name" {
   type        = string
   default     = null
   description = "Provide the security group name to provision the bastion node. If set to null, the solution will automatically create the necessary security group and rules. If you choose to use an existing security group, ensure it has the appropriate rules configured for the bastion node to function properly."
-}
-
-variable "enable_sec_interface_compute" {
-  type        = bool
-  default     = false
-  description = "Specifies whether the secondary interface is enabled for the Scale compute cluster."
 }

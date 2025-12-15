@@ -29,7 +29,7 @@ BACKUP_FILE="/etc/resolv.conf.bkp"
 
 # Optional: backup the interface config
 echo "DOMAIN=${management_dns_domain}" >> "/etc/sysconfig/network-scripts/ifcfg-${management_interfaces}"
-echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-${management_interfaces}"
+echo "MTU=${mtu_value}" >> "/etc/sysconfig/network-scripts/ifcfg-${management_interfaces}"
 chage -I -1 -m 0 -M 99999 -E -1 -W 14 vpcuser
 systemctl restart NetworkManager
 

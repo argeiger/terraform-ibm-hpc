@@ -21,6 +21,7 @@ module "lsf" {
   enable_vpc_flow_logs                             = local.env.enable_vpc_flow_logs
   custom_file_shares                               = local.env.custom_file_shares
   storage_security_group_id                        = local.env.storage_security_group_id
+  mtu_value                                        = local.env.mtu_value
   key_management                                   = local.env.key_management
   management_instances                             = local.env.management_instances
   vpc_cidr                                         = local.env.vpc_cidr

@@ -19,6 +19,7 @@ hyperthreading="{{ enable_hyperthreading }}"
 ManagementHostNames="{{ lsf_masters | join(' ') }}"
 dns_domain="{{ dns_domain_names }}"
 network_interface="eth0"
+mtu_value="{{ mtu_value }}"
 
 # LDAP
 enable_ldap="{{ enable_ldap }}"
@@ -44,11 +45,11 @@ chage -I -1 -m 0 -M 99999 -E -1 -W 14 lsfadmin
 
 # Setup Network configuration
 if grep -q "NAME=\"Red Hat Enterprise Linux" /etc/os-release; then
-  echo "MTU=9000" >>"/etc/sysconfig/network-scripts/ifcfg-${network_interface}"
+  echo "MTU=${mtu_value}" >>"/etc/sysconfig/network-scripts/ifcfg-${network_interface}"
   echo "DOMAIN=${dns_domain}" >>"/etc/sysconfig/network-scripts/ifcfg-${network_interface}"
   gateway_ip=$(ip route | grep default | awk '{print $3}' | head -n 1)
   cidr_range=$(ip route show | grep "kernel" | awk '{print $1}' | head -n 1)
-  echo "$cidr_range via $gateway_ip dev ${network_interface} metric 0 mtu 9000" >>/etc/sysconfig/network-scripts/route-${network_interface}
+  echo "$cidr_range via $gateway_ip dev ${network_interface} metric 0 mtu ${mtu_value}" >>/etc/sysconfig/network-scripts/route-${network_interface}
   systemctl restart NetworkManager
 fi
 

@@ -38,8 +38,8 @@ SSH_KEY="SSH_KEY"
 # Template JSON file (choose as per your deployment type)
 TEMPLATE_FILE="catalog_values_minimal_deployment.json"
 
-# LSF tile version locator
-LSF_TILE_VERSION="1082e7d2-5e2f-0a11-a3bc-f88a8e1931fc.92fba4af-b0dd-4b22-9415-9a5465ee9795-global"
+# LSF Tile Version locator for 3.2.0
+LSF_TILE_VERSION="1082e7d2-5e2f-0a11-a3bc-f88a8e1931fc.e09bd096-b377-4bc5-8e90-f038ec2df1ae-global"
 
 # App Center GUI password
 # Rules: Minimum 15 characters, at least 1 uppercase, 1 lowercase, 1 number,

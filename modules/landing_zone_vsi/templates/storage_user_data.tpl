@@ -7,7 +7,13 @@
 
 #!/usr/bin/env bash
 exec > >(tee /var/log/ibm_spectrumscale_user-data.log)
-
+if grep -q "Red Hat" /etc/os-release
+then
+    USER=vpcuser
+elif grep -q "Ubuntu" /etc/os-release
+then
+    USER=ubuntu
+fi
 sed -i -e "s/^/no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command=\"echo \'Please client as the user \\\\\"$USER\\\\\" rather than the user \\\\\"root\\\\\".\';echo;sleep 5; exit 142\" /" /root/.ssh/authorized_keys
 
 # input parameters
@@ -120,6 +126,15 @@ if [ "${enable_sec_interface_storage}" == true ]; then
     nmcli con add type ethernet con-name eth1 ifname eth1
     echo "DOMAIN=\"${storage_dns_domain}\"" >> "/etc/sysconfig/network-scripts/ifcfg-${protocol_interfaces}"
     echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-${protocol_interfaces}"
+    # Wait until eth1 gets an IP
+    while ! ip -4 addr show eth1 | grep -q "inet "; do sleep 1; done
+
+    ETH1_IP=$(ip -4 addr show eth1 | awk '/inet /{print $2}' | cut -d/ -f1)
+    GW="$(echo $ETH1_IP | awk -F. '{print $1"."$2"."$3".1"}')"
+
+    ip rule add from $ETH1_IP table 101
+    ip route add default via $GW dev eth1 table 101
+
     systemctl restart NetworkManager
 fi
 
