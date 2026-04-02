@@ -80,7 +80,7 @@ resource "null_resource" "fetch_host_details_from_deployer" {
           vpcuser@${var.deployer_ip}:/opt/ibm/terraform-ibm-hpc/solutions/${local.products}/*.ini \
           "${path.root}/../../solutions/${local.products}/"
     EOT
-    quiet   = true
+    #quiet   = true
   }
   depends_on = [resource.null_resource.tf_resource_provisioner]
 }
