@@ -8,7 +8,7 @@ resource "null_resource" "tf_resource_provisioner" {
     bastion_host        = var.bastion_fip
     bastion_user        = "ubuntu"
     bastion_private_key = var.bastion_private_key_content
-    timeout             = "60m"
+    timeout             = "5m"
   }
 
   provisioner "file" {
@@ -18,6 +18,8 @@ resource "null_resource" "tf_resource_provisioner" {
 
   provisioner "remote-exec" {
     inline = [
+      set -e
+
       # Conditionally clone "terraform-ibm-hpc" repository from TIM
       "if [ -f ${local.remote_terraform_path} ]; then sudo rm -f ${local.remote_terraform_path}; fi && if [ ! -d ${local.remote_terraform_path} ]; then echo 'Cloning repository with tag: ${local.da_hpc_repo_tag}' && sudo git clone -b ${local.da_hpc_repo_tag} https://${local.da_hpc_repo_url} ${local.remote_terraform_path}; fi",
 
@@ -29,6 +31,8 @@ resource "null_resource" "tf_resource_provisioner" {
 
       # Copy inputs file
       "sudo cp ${local.remote_inputs_path} ${local.remote_terraform_path}",
+
+      exit 1;
 
       # Run Terraform init and apply
       "export TF_LOG=${var.TF_LOG} && sudo -E terraform -chdir=${local.remote_terraform_path} init && sudo -E terraform -chdir=${local.remote_terraform_path} apply -parallelism=${var.TF_PARALLELISM} -auto-approve -lock=false"
