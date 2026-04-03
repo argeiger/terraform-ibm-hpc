@@ -121,6 +121,7 @@ locals {
       destination = element(local.cidrs_network_acl_rules, cidr_index)
       direction   = "outbound"
       source      = var.cluster_cidr
+      protocol    = "all"
     }
   ]
   network_acl_rules = flatten([local.network_acl_inbound_rules, local.network_acl_outbound_rules])
