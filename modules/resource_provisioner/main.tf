@@ -8,7 +8,7 @@ resource "null_resource" "tf_resource_provisioner" {
     bastion_host        = var.bastion_fip
     bastion_user        = "ubuntu"
     bastion_private_key = var.bastion_private_key_content
-    timeout             = "60m"
+    timeout             = "120m"
   }
 
   provisioner "file" {
